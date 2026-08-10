@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: pwa-finanzas-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: EB_APPLICATION_ID
+        sync: false
+      - key: EB_PRIVATE_KEY_PEM
+        sync: false
+      - key: APP_JWT_SECRET
+        sync: false
+      - key: APP_PASSWORD_HASH
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: BACKEND_PUBLIC_URL
+        sync: false
