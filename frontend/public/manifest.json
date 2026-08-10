@@ -1,0 +1,13 @@
+{
+  "name": "Finanzas",
+  "short_name": "Finanzas",
+  "description": "Saldo y movimientos de tus cuentas bancarias.",
+  "start_url": "/accounts",
+  "display": "standalone",
+  "background_color": "#f7f7f8",
+  "theme_color": "#171717",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

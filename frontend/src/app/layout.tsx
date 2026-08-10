@@ -1,0 +1,41 @@
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { AuthProvider } from "@/lib/auth";
+import BottomNav from "@/components/BottomNav";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+
+export const metadata: Metadata = {
+  title: "Finanzas",
+  description: "Saldo y movimientos de tus cuentas bancarias.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Finanzas",
+  },
+  icons: {
+    icon: "/icons/icon.svg",
+    apple: "/icons/icon.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#171717",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html lang="es" className="h-full antialiased">
+      <body className="min-h-full">
+        <AuthProvider>
+          {children}
+          <BottomNav />
+        </AuthProvider>
+        <ServiceWorkerRegister />
+      </body>
+    </html>
+  );
+}
