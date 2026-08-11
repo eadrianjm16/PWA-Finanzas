@@ -1,8 +1,6 @@
-import logging
-import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -15,9 +13,6 @@ from .default_categories import seed_if_needed
 from .rate_limit import limiter
 from .routers import accounts, alerts, analysis, auth, banks, budgets, categories, debtors, transactions
 from .services.enable_banking import EnableBankingClient
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger("finanzas")
 
 
 @asynccontextmanager
@@ -50,14 +45,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start = time.monotonic()
-    response = await call_next(request)
-    duration_ms = (time.monotonic() - start) * 1000
-    logger.info("%s %s -> %s (%.1fms)", request.method, request.url.path, response.status_code, duration_ms)
-    return response
 
 app.include_router(auth.router)
 app.include_router(banks.router)

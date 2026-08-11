@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from .. import models, schemas
 from ..deps import get_db_session, require_auth
@@ -21,7 +21,13 @@ def list_transactions(
     offset: int = 0,
     db: Session = Depends(get_db_session),
 ) -> list[models.Transaction]:
-    query = db.query(models.Transaction)
+    # category/debt_entries son lazy por defecto: sin eager loading, serializar
+    # N movimientos dispara N consultas de red separadas a Turso (una por cada
+    # `.has_debt_entries` accedido), en vez de una sola consulta con IN.
+    query = db.query(models.Transaction).options(
+        joinedload(models.Transaction.category),
+        selectinload(models.Transaction.debt_entries),
+    )
     if account_uid:
         query = query.filter(models.Transaction.account_uid == account_uid)
     if category_id:

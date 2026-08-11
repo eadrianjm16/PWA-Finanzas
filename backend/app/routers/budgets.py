@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -23,10 +24,28 @@ def _spent_this_month(db: Session, category_id: str) -> float:
     return sum(abs(float(tx.amount)) for tx in transactions)
 
 
+def _spent_by_category_this_month(db: Session) -> dict[str, float]:
+    """Version agrupada de _spent_this_month para el listado: una sola
+    consulta con GROUP BY en vez de una consulta por categoria (con una base
+    de datos remota como Turso, cada consulta extra es un round-trip de red)."""
+    start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    rows = (
+        db.query(models.Transaction.category_id, func.sum(models.Transaction.amount))
+        .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.is_visible.is_(True))
+        .filter(models.Transaction.credit_debit_indicator == "DBIT")
+        .filter(models.Transaction.booking_date >= start)
+        .group_by(models.Transaction.category_id)
+        .all()
+    )
+    return {category_id: abs(float(total)) for category_id, total in rows if category_id is not None}
+
+
 @router.get("", response_model=list[schemas.BudgetOut])
 def list_budgets(db: Session = Depends(get_db_session)) -> list[schemas.BudgetOut]:
     categories = db.query(models.Category).order_by(models.Category.sort_order).all()
     budgets_by_category = {b.category_id: b for b in db.query(models.Budget).all()}
+    spent_by_category = _spent_by_category_this_month(db)
     return [
         schemas.BudgetOut(
             category=category,
@@ -35,7 +54,7 @@ def list_budgets(db: Session = Depends(get_db_session)) -> list[schemas.BudgetOu
                 if category.id in budgets_by_category
                 else None
             ),
-            spent_this_month=_spent_this_month(db, category.id),
+            spent_this_month=spent_by_category.get(category.id, 0.0),
         )
         for category in categories
     ]

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
 from ..deps import get_db_session, require_auth
@@ -24,7 +24,9 @@ def _get_debtor_or_404(db: Session, debtor_id: str) -> models.Debtor:
 
 @router.get("", response_model=list[schemas.DebtorOut])
 def list_debtors(db: Session = Depends(get_db_session)) -> list[schemas.DebtorOut]:
-    debtors = db.query(models.Debtor).order_by(models.Debtor.name).all()
+    debtors = (
+        db.query(models.Debtor).options(selectinload(models.Debtor.entries)).order_by(models.Debtor.name).all()
+    )
     return [_to_out(d) for d in debtors]
 
 
