@@ -25,3 +25,9 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: REGISTRATION_INVITE_CODE
+        sync: false

@@ -7,7 +7,7 @@ import { clearPersistedSWRCache } from "@/components/SWRProvider";
 interface AuthContextValue {
   isAuthenticated: boolean | null; // null = todavía no se ha comprobado (evita parpadeo)
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, inviteCode?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -32,10 +32,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(true);
   }, []);
 
-  const register = useCallback(async (email: string, password: string) => {
+  const register = useCallback(async (email: string, password: string, inviteCode?: string) => {
     const result = await apiFetch<{ access_token: string }>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, invite_code: inviteCode || null }),
     });
     setToken(result.access_token);
     setIsAuthenticated(true);

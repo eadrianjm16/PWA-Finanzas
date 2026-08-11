@@ -91,3 +91,31 @@ si confirmas que es la que quieres conservar.
 inicial — una vez todo funciona, genera unos nuevos (mismos comandos del
 paso 2) y actualízalos en Render. Al cambiar `APP_JWT_SECRET` se invalidan
 todas las sesiones activas (tendrás que volver a hacer login).
+
+## 9. Recuperar contraseña por email (opcional, Resend)
+
+Sin configurar esto, "olvidé mi contraseña" no falla, pero tampoco llega
+ningún email (queda logueado en Render, nada más).
+
+1. Crea cuenta gratis en [resend.com](https://resend.com) (3.000 emails/mes
+   gratis).
+2. **API Keys** → crea una → cópiala.
+3. En Render → Environment: añade `RESEND_API_KEY` con esa clave.
+4. Importante — **sin verificar un dominio propio en Resend**, el email
+   remitente por defecto (`onboarding@resend.dev`) solo puede enviar al
+   email con el que te registraste en Resend, no a cualquier usuario de la
+   app. Si vas a tener varias personas usando la app, en Resend →
+   **Domains** → añade y verifica un dominio tuyo, y luego define
+   `RESEND_FROM_EMAIL` en Render como `Finanzas <noreply@tudominio.com>`.
+
+## 10. Cerrar el registro abierto (opcional, código de invitación)
+
+Por defecto cualquiera con el enlace puede crear una cuenta. Para exigir un
+código:
+
+1. En Render → Environment: añade `REGISTRATION_INVITE_CODE` con el código
+   que quieras (cualquier texto, es solo un secreto compartido — no hace
+   falta que sea complejo, no protege datos sensibles, solo filtra quién
+   puede registrarse).
+2. Comparte ese código solo con quien quieras que se registre.
+3. Para dejar de exigirlo, borra la variable (o vacíala) en Render.

@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     # Monitorizacion de errores (opcional). Vacio = Sentry desactivado.
     sentry_dsn: str = ""
 
+    # Envio de emails (recuperar contraseña), via Resend. Vacio = la funcion
+    # queda "activa" a nivel de API pero no llega a enviar nada (se loguea).
+    resend_api_key: str = ""
+    resend_from_email: str = "Finanzas <onboarding@resend.dev>"
+
+    # Codigo de invitacion para registrarse (opcional). Vacio = registro abierto.
+    registration_invite_code: str = ""
+
     @property
     def eb_redirect_url(self) -> str:
         return f"{self.backend_public_url.rstrip('/')}/api/banks/callback"

@@ -17,7 +17,8 @@ export default function BottomNav() {
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
 
-  if (pathname === "/login" || pathname === "/register" || !isAuthenticated) return null;
+  const publicPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
+  if (publicPaths.includes(pathname) || !isAuthenticated) return null;
 
   return (
     <nav
