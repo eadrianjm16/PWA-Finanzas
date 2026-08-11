@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, ChevronRight, LogOut, Tags, Users } from "lucide-react";
+import useSWR from "swr";
+import { Bell, ChevronRight, LogOut, ShieldCheck, Tags, Users } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import type { Me } from "@/lib/types";
 
 const LINKS = [
   { href: "/alertas", label: "Alertas", icon: Bell },
@@ -13,13 +16,16 @@ const LINKS = [
 
 function MasContent() {
   const { logout } = useAuth();
+  const { data: me } = useSWR<Me>("/api/auth/me", apiFetch);
+
+  const links = me?.is_admin ? [...LINKS, { href: "/admin", label: "Gestión de cuentas", icon: ShieldCheck }] : LINKS;
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
       <h1 className="mb-6 text-2xl font-semibold tracking-tight">Más</h1>
 
       <ul className="mb-6 overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
-        {LINKS.map((link, index) => {
+        {links.map((link, index) => {
           const Icon = link.icon;
           return (
             <li key={link.href} className={index > 0 ? "border-t border-surface-border" : ""}>

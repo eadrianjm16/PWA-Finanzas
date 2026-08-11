@@ -37,7 +37,18 @@ class UserOut(BaseModel):
 
     id: str
     email: str
+    is_admin: bool
     created_at: datetime
+
+
+class AdminUserOut(BaseModel):
+    id: str
+    email: str
+    is_admin: bool
+    created_at: datetime
+    bank_connections_count: int
+    transactions_count: int
+    debtors_count: int
 
 
 class ASPSPOut(BaseModel):

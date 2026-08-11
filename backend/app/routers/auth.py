@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..config import settings
 from ..default_categories import seed_categories_for_user
-from ..deps import get_db_session
+from ..deps import CurrentUser, get_current_user, get_db_session
 from ..rate_limit import limiter
 from ..security import (
     create_access_token,
@@ -95,3 +95,8 @@ def reset_password(
     user.password_hash = hash_password(payload.new_password)
     db.commit()
     return schemas.MessageResponse(message="Contraseña actualizada. Ya puedes entrar con la nueva.")
+
+
+@router.get("/me", response_model=schemas.UserOut)
+def me(user: CurrentUser = Depends(get_current_user)) -> models.User:
+    return user

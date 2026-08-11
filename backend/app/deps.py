@@ -27,6 +27,12 @@ def get_current_user(
     return user
 
 
+def get_current_admin(user: models.User = Depends(get_current_user)) -> models.User:
+    if not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo un administrador puede hacer esto")
+    return user
+
+
 DbSession = Session
 get_db_session = get_db
 CurrentUser = models.User

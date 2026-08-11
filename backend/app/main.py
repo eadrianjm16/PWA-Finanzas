@@ -11,7 +11,7 @@ from . import models
 from .config import settings
 from .database import engine
 from .rate_limit import limiter
-from .routers import accounts, alerts, analysis, auth, banks, budgets, categories, debtors, transactions
+from .routers import accounts, admin, alerts, analysis, auth, banks, budgets, categories, debtors, transactions
 from .services.enable_banking import EnableBankingClient
 
 if settings.sentry_dsn:
@@ -56,6 +56,7 @@ app.include_router(budgets.router)
 app.include_router(alerts.router)
 app.include_router(analysis.router)
 app.include_router(debtors.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")

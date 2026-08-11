@@ -115,3 +115,20 @@ export interface DebtorDetail {
   balance: number;
   entries: DebtEntry[];
 }
+
+export interface Me {
+  id: string;
+  email: string;
+  is_admin: boolean;
+  created_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  is_admin: boolean;
+  created_at: string;
+  bank_connections_count: number;
+  transactions_count: number;
+  debtors_count: number;
+}
