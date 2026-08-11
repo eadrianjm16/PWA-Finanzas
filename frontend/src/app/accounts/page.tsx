@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import BankPicker from "@/components/BankPicker";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -11,27 +12,16 @@ import type { BankConnection } from "@/lib/types";
 function AccountsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [connections, setConnections] = useState<BankConnection[] | null>(null);
+  const { data: connections, mutate } = useSWR<BankConnection[]>("/api/banks/connections", apiFetch);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<BankConnection[]>("/api/banks/connections");
-      setConnections(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo cargar las cuentas");
-    }
-  }, []);
-
   useEffect(() => {
-    // Carga inicial y, si venimos del redirect del banco, aviso + limpieza de
-    // la URL. Todo en un único efecto para no disparar load() dos veces.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    // Si venimos del redirect del banco, aviso + limpieza de la URL.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (searchParams.get("connected")) {
       setNotice("Banco conectado correctamente.");
       router.replace("/accounts");
@@ -39,13 +29,14 @@ function AccountsContent() {
       setNotice(`No se pudo conectar el banco (${searchParams.get("bank_error")}).`);
       router.replace("/accounts");
     }
-  }, [searchParams, router, load]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [searchParams, router]);
 
   async function refreshBalance(accountUid: string) {
     setRefreshing(accountUid);
     try {
       await apiFetch(`/api/accounts/${accountUid}/refresh-balance`, { method: "POST" });
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo actualizar el saldo");
     } finally {
@@ -59,7 +50,7 @@ function AccountsContent() {
         method: "PATCH",
         body: JSON.stringify({ [field]: value }),
       });
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo actualizar la cuenta");
     }
@@ -74,7 +65,7 @@ function AccountsContent() {
       return;
     try {
       await apiFetch(`/api/banks/connections/${connection.id}`, { method: "DELETE" });
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo eliminar el banco");
     }
@@ -102,7 +93,7 @@ function AccountsContent() {
 
       <p className="mb-8 text-3xl font-semibold">{formatMoney(total, "EUR")}</p>
 
-      {connections === null && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {!connections && <p className="text-sm text-neutral-500">Cargando…</p>}
       {connections?.length === 0 && (
         <p className="text-sm text-neutral-500">
           Todavía no has conectado ningún banco. Toca &quot;+ Banco&quot; para empezar.

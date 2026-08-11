@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import TransactionDetail from "@/components/TransactionDetail";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -8,24 +9,10 @@ import { dayKey, formatDay, formatMoney } from "@/lib/format";
 import type { SyncResult, Transaction } from "@/lib/types";
 
 function MovimientosContent() {
-  const [transactions, setTransactions] = useState<Transaction[] | null>(null);
+  const { data: transactions, mutate } = useSWR<Transaction[]>("/api/transactions?limit=200", apiFetch);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [selected, setSelected] = useState<Transaction | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<Transaction[]>("/api/transactions?limit=200");
-      setTransactions(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudieron cargar los movimientos");
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   async function sync() {
     setSyncing(true);
@@ -36,7 +23,7 @@ function MovimientosContent() {
       if (failed.length > 0) {
         setError(`No se pudo sincronizar ${failed.length} cuenta(s).`);
       }
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo sincronizar");
     } finally {
@@ -70,7 +57,7 @@ function MovimientosContent() {
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
-      {transactions === null && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {!transactions && <p className="text-sm text-neutral-500">Cargando…</p>}
       {transactions?.length === 0 && (
         <p className="text-sm text-neutral-500">
           Sin movimientos todavía. Conecta un banco y pulsa &quot;Sincronizar&quot;.
@@ -121,7 +108,7 @@ function MovimientosContent() {
         <TransactionDetail
           transaction={selected}
           onClose={() => setSelected(null)}
-          onUpdated={load}
+          onUpdated={mutate}
         />
       )}
     </main>

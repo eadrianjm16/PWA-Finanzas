@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import BarChart from "@/components/BarChart";
 import CategoryDetail from "@/components/CategoryDetail";
@@ -15,25 +16,13 @@ function AnalisisContent() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [summary, setSummary] = useState<AnalysisSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null);
 
-  const load = useCallback(async (y: number, m: number) => {
-    setSummary(null);
-    setError(null);
-    try {
-      const data = await apiFetch<AnalysisSummary>(`/api/analysis/summary?year=${y}&month=${m}`);
-      setSummary(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo cargar el análisis");
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load(year, month);
-  }, [year, month, load]);
+  const { data: summary, error: fetchError } = useSWR<AnalysisSummary>(
+    `/api/analysis/summary?year=${year}&month=${month}`,
+    apiFetch
+  );
+  const error = fetchError ? (fetchError instanceof ApiError ? fetchError.message : "No se pudo cargar el análisis") : null;
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 

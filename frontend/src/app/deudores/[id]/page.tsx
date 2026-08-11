@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR, { mutate as globalMutate } from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
@@ -15,7 +16,7 @@ function DeudorDetailContent() {
   const router = useRouter();
   const debtorId = params.id;
 
-  const [debtor, setDebtor] = useState<DebtorDetail | null>(null);
+  const { data: debtor, mutate } = useSWR<DebtorDetail>(`/api/debtors/${debtorId}`, apiFetch);
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<"none" | "payment" | "manual">("none");
   const [amountText, setAmountText] = useState("");
@@ -23,19 +24,10 @@ function DeudorDetailContent() {
   const [kind, setKind] = useState<EntryKind>("owedToMe");
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<DebtorDetail>(`/api/debtors/${debtorId}`);
-      setDebtor(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo cargar el deudor");
-    }
-  }, [debtorId]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  async function reloadAfterMutation() {
+    await mutate();
+    await globalMutate("/api/debtors");
+  }
 
   const isOwedToMe = (debtor?.balance ?? 0) >= 0;
 
@@ -57,7 +49,7 @@ function DeudorDetailContent() {
     try {
       await apiFetch(`/api/debtors/${debtorId}/payments`, { method: "POST", body: JSON.stringify({ amount }) });
       resetPanel();
-      await load();
+      await reloadAfterMutation();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo registrar el pago");
     } finally {
@@ -82,7 +74,7 @@ function DeudorDetailContent() {
         }),
       });
       resetPanel();
-      await load();
+      await reloadAfterMutation();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo añadir la deuda");
     } finally {
@@ -95,7 +87,7 @@ function DeudorDetailContent() {
     setError(null);
     try {
       await apiFetch(`/api/debtors/${debtorId}/cancel`, { method: "POST" });
-      await load();
+      await reloadAfterMutation();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo cancelar la deuda");
     }
@@ -105,6 +97,7 @@ function DeudorDetailContent() {
     if (!window.confirm(`¿Borrar a ${debtor?.name}? Se perderá todo su historial.`)) return;
     try {
       await apiFetch(`/api/debtors/${debtorId}`, { method: "DELETE" });
+      await globalMutate("/api/debtors");
       router.push("/deudores");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo borrar");
@@ -114,7 +107,7 @@ function DeudorDetailContent() {
   async function deleteEntry(entryId: string) {
     try {
       await apiFetch(`/api/debtors/${debtorId}/entries/${entryId}`, { method: "DELETE" });
-      await load();
+      await reloadAfterMutation();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo borrar el movimiento");
     }

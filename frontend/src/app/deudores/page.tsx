@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
@@ -20,25 +21,11 @@ function balanceClass(balance: number): string {
 }
 
 function DeudoresContent() {
-  const [debtors, setDebtors] = useState<Debtor[] | null>(null);
+  const { data: debtors, mutate } = useSWR<Debtor[]>("/api/debtors", apiFetch);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<Debtor[]>("/api/debtors");
-      setDebtors(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudieron cargar los deudores");
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   async function addDebtor() {
     const trimmed = newName.trim();
@@ -49,7 +36,7 @@ function DeudoresContent() {
       await apiFetch("/api/debtors", { method: "POST", body: JSON.stringify({ name: trimmed }) });
       setNewName("");
       setAdding(false);
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo añadir");
     } finally {
@@ -89,7 +76,7 @@ function DeudoresContent() {
       )}
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {debtors === null && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {!debtors && <p className="text-sm text-neutral-500">Cargando…</p>}
       {debtors?.length === 0 && (
         <p className="text-sm text-neutral-500">Sin deudores. Añade una persona con &quot;+ Persona&quot;.</p>
       )}

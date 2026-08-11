@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import CategoryEditor from "@/components/CategoryEditor";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -10,25 +11,11 @@ import type { Category } from "@/lib/types";
 const OTROS_NAME = "Otros";
 
 function CategoriasContent() {
-  const [categories, setCategories] = useState<Category[] | null>(null);
+  const { data: categories, mutate } = useSWR<Category[]>("/api/categories", apiFetch);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editorTarget, setEditorTarget] = useState<Category | "new" | null>(null);
   const [recalculating, setRecalculating] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<Category[]>("/api/categories");
-      setCategories(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudieron cargar las categorías");
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   async function saveCategory(name: string, systemIconName: string) {
     if (editorTarget === "new") {
@@ -43,14 +30,14 @@ function CategoriasContent() {
       });
     }
     setEditorTarget(null);
-    await load();
+    await mutate();
   }
 
   async function deleteCategory(category: Category) {
     if (!window.confirm(`¿Borrar "${category.name}"? Sus movimientos pasarán a "${OTROS_NAME}".`)) return;
     try {
       await apiFetch(`/api/categories/${category.id}`, { method: "DELETE" });
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo borrar la categoría");
     }
@@ -62,7 +49,7 @@ function CategoriasContent() {
     if (target < 0 || target >= categories.length) return;
     const reordered = [...categories];
     [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-    setCategories(reordered);
+    await mutate(reordered, { revalidate: false });
     try {
       await apiFetch("/api/categories/reorder", {
         method: "PUT",
@@ -70,7 +57,7 @@ function CategoriasContent() {
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo reordenar");
-      await load();
+      await mutate();
     }
   }
 
@@ -104,7 +91,7 @@ function CategoriasContent() {
 
       {notice && <p className="mb-4 rounded-lg bg-neutral-100 px-3 py-2 text-sm dark:bg-neutral-900">{notice}</p>}
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {categories === null && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {!categories && <p className="text-sm text-neutral-500">Cargando…</p>}
 
       <ul className="mb-6 divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
         {categories?.map((category, index) => (

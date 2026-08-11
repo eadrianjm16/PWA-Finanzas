@@ -1,34 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Alert } from "@/lib/types";
 
 function AlertasContent() {
-  const [alerts, setAlerts] = useState<Alert[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<Alert[]>("/api/alerts");
-      setAlerts(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudieron cargar las alertas");
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  const { data: alerts, error: fetchError } = useSWR<Alert[]>("/api/alerts", apiFetch);
+  const error = fetchError ? (fetchError instanceof ApiError ? fetchError.message : "No se pudieron cargar las alertas") : null;
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <h1 className="mb-6 text-xl font-semibold">Alertas</h1>
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {alerts === null && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {!alerts && <p className="text-sm text-neutral-500">Cargando…</p>}
       {alerts?.length === 0 && <p className="text-sm text-neutral-500">Todo en orden, sin alertas.</p>}
 
       <ul className="flex flex-col gap-2">

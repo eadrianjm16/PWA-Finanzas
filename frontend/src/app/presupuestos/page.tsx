@@ -1,31 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { Budget } from "@/lib/types";
 
 function BudgetsContent() {
-  const [budgets, setBudgets] = useState<Budget[] | null>(null);
+  const { data: budgets, mutate } = useSWR<Budget[]>("/api/budgets", apiFetch);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftLimit, setDraftLimit] = useState("");
   const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<Budget[]>("/api/budgets");
-      setBudgets(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudieron cargar los presupuestos");
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   function startEdit(budget: Budget) {
     setEditingId(budget.category.id);
@@ -46,7 +33,7 @@ function BudgetsContent() {
         body: JSON.stringify({ monthly_limit: value }),
       });
       setEditingId(null);
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo guardar el presupuesto");
     } finally {
@@ -60,7 +47,7 @@ function BudgetsContent() {
     try {
       await apiFetch(`/api/budgets/${categoryId}`, { method: "DELETE" });
       setEditingId(null);
-      await load();
+      await mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo quitar el presupuesto");
     } finally {
@@ -73,7 +60,7 @@ function BudgetsContent() {
       <h1 className="mb-6 text-xl font-semibold">Presupuestos</h1>
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {budgets === null && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {!budgets && <p className="text-sm text-neutral-500">Cargando…</p>}
 
       <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
         {budgets?.map((budget) => {
