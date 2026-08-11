@@ -16,9 +16,11 @@ class Settings(BaseSettings):
     eb_application_id: str
     eb_private_key_pem: str
 
-    # Auth de la app (single-user, uso personal).
+    # Auth de la app (multiusuario: cada usuario tiene su fila en `users`).
     app_jwt_secret: str
-    app_password_hash: str
+    # Solo se usa como semilla puntual en la migracion a multiusuario (para
+    # preservar la contraseña del usuario original); la app ya no la lee.
+    app_password_hash: str = ""
 
     # URLs publicas para CORS y para el redirect_url que se registra en Enable Banking.
     frontend_origin: str = "http://localhost:3000"

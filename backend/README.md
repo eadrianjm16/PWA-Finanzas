@@ -6,8 +6,10 @@ de saldos y movimientos, categorización automática (con CRUD completo de
 categorías), presupuestos, alertas, análisis mensual con detección de
 traspasos internos, y deudores (repartos de gastos entre personas).
 
-Uso estrictamente personal (single-user): no hay tabla de usuarios, solo una
-contraseña de acceso configurada por variable de entorno.
+Multiusuario: cada persona se registra con su email (`POST /api/auth/register`)
+y ve solo sus propios bancos, movimientos, categorías, presupuestos y
+deudores — aislados por `user_id` en cada tabla. Al registrarse se le siembra
+automáticamente el catálogo de categorías por defecto.
 
 ## Desarrollo local
 
@@ -16,18 +18,28 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # completa EB_APPLICATION_ID, EB_PRIVATE_KEY_PEM, etc.
+alembic upgrade head   # crea el esquema (tablas incluida `users`)
 uvicorn app.main:app --reload
 ```
 
-Genera el hash de tu contraseña de acceso:
+Crea tu cuenta desde la propia PWA (pantalla "Crear cuenta") o directamente:
 
 ```bash
-python -c "from app.security import hash_password; print(hash_password('tu-contraseña'))"
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "tu@email.com", "password": "tu-contraseña"}'
 ```
 
-y pégalo en `APP_PASSWORD_HASH` dentro de `.env`.
-
 La documentación interactiva queda en `http://localhost:8000/docs`.
+
+### Migraciones
+
+Los cambios de esquema se gestionan con Alembic (`backend/alembic/`). Tras
+cambiar `app/models.py`, genera una migración nueva con
+`alembic revision --autogenerate -m "descripcion"`, revísala a mano (SQLite/
+libsql necesita `render_as_batch=True`, ya configurado en `alembic/env.py`) y
+aplícala con `alembic upgrade head`. En producción, `render.yaml` ya ejecuta
+`alembic upgrade head` antes de arrancar el servidor en cada deploy.
 
 ## Registrar el redirect en Enable Banking
 

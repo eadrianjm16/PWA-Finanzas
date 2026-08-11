@@ -6,7 +6,8 @@ import { clearPersistedSWRCache } from "@/components/SWRProvider";
 
 interface AuthContextValue {
   isAuthenticated: boolean | null; // null = todavía no se ha comprobado (evita parpadeo)
-  login: (password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -22,10 +23,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(getToken() !== null);
   }, []);
 
-  const login = useCallback(async (password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const result = await apiFetch<{ access_token: string }>("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ email, password }),
+    });
+    setToken(result.access_token);
+    setIsAuthenticated(true);
+  }, []);
+
+  const register = useCallback(async (email: string, password: string) => {
+    const result = await apiFetch<{ access_token: string }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
     });
     setToken(result.access_token);
     setIsAuthenticated(true);
@@ -37,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(false);
   }, []);
 
-  return <AuthContext.Provider value={{ isAuthenticated, login, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ isAuthenticated, login, register, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

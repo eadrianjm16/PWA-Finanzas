@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
-import { ChevronRight, Plus, Users } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Users } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -52,6 +52,18 @@ function DeudoresContent() {
       setError(err instanceof ApiError ? err.message : "No se pudo añadir");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteDebtor(debtor: Debtor, event: React.MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!window.confirm(`¿Borrar a ${debtor.name}? Se perderá todo su historial.`)) return;
+    try {
+      await apiFetch(`/api/debtors/${debtor.id}`, { method: "DELETE" });
+      await mutate();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo borrar");
     }
   }
 
@@ -116,6 +128,13 @@ function DeudoresContent() {
                   {formatMoney(Math.abs(debtor.balance), "EUR")}
                 </p>
               </div>
+              <button
+                onClick={(e) => deleteDebtor(debtor, e)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-soft transition hover:bg-danger-soft hover:text-danger"
+                aria-label={`Borrar a ${debtor.name}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-soft" />
             </Link>
           </li>

@@ -16,25 +16,26 @@ def _normalized_text(text: str) -> str:
     return "".join(ch for ch in upper if ch.isalpha() or ch == " ")[:20]
 
 
-def _visible_transactions_this_month(db: Session) -> list[models.Transaction]:
+def _visible_transactions_this_month(db: Session, user_id: str) -> list[models.Transaction]:
     now = datetime.now(timezone.utc)
     start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return (
         db.query(models.Transaction)
         .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.user_id == user_id)
         .filter(models.LinkedAccount.is_visible.is_(True))
         .filter(models.Transaction.booking_date >= start)
         .all()
     )
 
 
-def budget_threshold_alerts(db: Session) -> list[dict]:
-    budgets = db.query(models.Budget).all()
+def budget_threshold_alerts(db: Session, user_id: str) -> list[dict]:
+    budgets = db.query(models.Budget).join(models.Category).filter(models.Category.user_id == user_id).all()
     if not budgets:
         return []
 
     spend_by_category: dict[str, float] = {}
-    for tx in _visible_transactions_this_month(db):
+    for tx in _visible_transactions_this_month(db, user_id):
         if tx.credit_debit_indicator != "DBIT" or tx.category_id is None:
             continue
         spend_by_category[tx.category_id] = spend_by_category.get(tx.category_id, 0) + abs(float(tx.amount))
@@ -66,10 +67,10 @@ def budget_threshold_alerts(db: Session) -> list[dict]:
     return alerts
 
 
-def duplicate_charge_alerts(db: Session) -> list[dict]:
+def duplicate_charge_alerts(db: Session, user_id: str) -> list[dict]:
     candidates = [
         tx
-        for tx in _visible_transactions_this_month(db)
+        for tx in _visible_transactions_this_month(db, user_id)
         if tx.credit_debit_indicator == "DBIT" and (tx.category is None or tx.category.name != "Suscripciones")
     ]
 
@@ -101,12 +102,13 @@ def duplicate_charge_alerts(db: Session) -> list[dict]:
     return alerts
 
 
-def bank_fee_alerts(db: Session) -> list[dict]:
+def bank_fee_alerts(db: Session, user_id: str) -> list[dict]:
     one_month_ago = datetime.now(timezone.utc) - timedelta(days=30)
     fees = (
         db.query(models.Transaction)
         .join(models.LinkedAccount)
         .join(models.Category)
+        .filter(models.LinkedAccount.user_id == user_id)
         .filter(models.LinkedAccount.is_visible.is_(True))
         .filter(models.Category.name == "Comisiones bancarias")
         .filter(models.Transaction.booking_date >= one_month_ago)
@@ -123,5 +125,5 @@ def bank_fee_alerts(db: Session) -> list[dict]:
     ]
 
 
-def evaluate_alerts(db: Session) -> list[dict]:
-    return budget_threshold_alerts(db) + duplicate_charge_alerts(db) + bank_fee_alerts(db)
+def evaluate_alerts(db: Session, user_id: str) -> list[dict]:
+    return budget_threshold_alerts(db, user_id) + duplicate_charge_alerts(db, user_id) + bank_fee_alerts(db, user_id)

@@ -24,7 +24,7 @@ def _parse_date(value: str | None) -> datetime | None:
     return datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
 
-def link_accounts(db: Session, session_data: dict, aspsp: dict) -> models.BankConnection:
+def link_accounts(db: Session, session_data: dict, aspsp: dict, user_id: str) -> models.BankConnection:
     accounts = session_data.get("accounts") or []
     if not accounts:
         raise EnableBankingError(422, "No se encontraron cuentas tras autorizar el acceso.")
@@ -33,9 +33,11 @@ def link_accounts(db: Session, session_data: dict, aspsp: dict) -> models.BankCo
     aspsp_country = aspsp["country"].strip()
     connection_key = f"{aspsp_name}|{aspsp_country}"
 
-    connection = db.query(models.BankConnection).filter_by(key=connection_key).first()
+    connection = db.query(models.BankConnection).filter_by(user_id=user_id, key=connection_key).first()
     if connection is None:
-        connection = models.BankConnection(aspsp_name=aspsp_name, aspsp_country=aspsp_country, key=connection_key)
+        connection = models.BankConnection(
+            user_id=user_id, aspsp_name=aspsp_name, aspsp_country=aspsp_country, key=connection_key
+        )
         db.add(connection)
         db.flush()
 
@@ -52,6 +54,7 @@ def link_accounts(db: Session, session_data: dict, aspsp: dict) -> models.BankCo
             db.add(
                 models.LinkedAccount(
                     account_uid=account_uid,
+                    user_id=user_id,
                     display_name=account.get("name") or aspsp_name,
                     iban=iban,
                     connection_id=connection.id,
@@ -101,8 +104,8 @@ def _fallback_key(tx: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _category_for(db: Session, name: str) -> models.Category | None:
-    return db.query(models.Category).filter_by(name=name).first()
+def _category_for(db: Session, user_id: str, name: str) -> models.Category | None:
+    return db.query(models.Category).filter_by(user_id=user_id, name=name).first()
 
 
 async def sync_transactions(db: Session, account: models.LinkedAccount, client: EnableBankingClient) -> None:
@@ -123,7 +126,7 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
         mcc = eb_tx.get("merchant_category_code")
 
         category_name = suggest_category(mcc=mcc, remittance_information=remittance, credit_debit_indicator=indicator)
-        category = _category_for(db, category_name)
+        category = _category_for(db, account.user_id, category_name)
 
         db.add(
             models.Transaction(
@@ -151,10 +154,16 @@ def delete_connection(db: Session, connection: models.BankConnection) -> None:
     db.commit()
 
 
-def recategorize_uncategorized(db: Session) -> int:
+def recategorize_uncategorized(db: Session, user_id: str) -> int:
     """Vuelve a pasar el motor de categorizacion sobre movimientos que nunca
     se categorizaron a mano. Util tras ampliar las reglas de categorizacion."""
-    pending = db.query(models.Transaction).filter_by(is_user_categorized=False).all()
+    pending = (
+        db.query(models.Transaction)
+        .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.user_id == user_id)
+        .filter(models.Transaction.is_user_categorized.is_(False))
+        .all()
+    )
     updated = 0
     for tx in pending:
         name = suggest_category(
@@ -162,7 +171,7 @@ def recategorize_uncategorized(db: Session) -> int:
             remittance_information=tx.remittance_information,
             credit_debit_indicator=tx.credit_debit_indicator,
         )
-        category = _category_for(db, name)
+        category = _category_for(db, user_id, name)
         if category is None or (tx.category is not None and tx.category.name == name):
             continue
         tx.category_id = category.id

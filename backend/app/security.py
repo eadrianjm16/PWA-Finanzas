@@ -9,17 +9,17 @@ APP_TOKEN_TYPE = "session"
 STATE_TOKEN_TYPE = "oauth_state"
 
 
-def verify_password(plain_password: str) -> bool:
-    return bcrypt.checkpw(plain_password.encode("utf-8"), settings.app_password_hash.encode("utf-8"))
+def verify_password(plain_password: str, password_hash: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
 def hash_password(plain_password: str) -> str:
     return bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def create_access_token(expires_minutes: int = 60 * 24 * 30) -> str:
+def create_access_token(user_id: str, expires_minutes: int = 60 * 24 * 30) -> str:
     now = int(time.time())
-    payload = {"type": APP_TOKEN_TYPE, "iat": now, "exp": now + expires_minutes * 60}
+    payload = {"type": APP_TOKEN_TYPE, "sub": user_id, "iat": now, "exp": now + expires_minutes * 60}
     return jwt.encode(payload, settings.app_jwt_secret, algorithm="HS256")
 
 
@@ -30,14 +30,17 @@ def decode_access_token(token: str) -> dict:
     return payload
 
 
-def create_oauth_state(aspsp_name: str, aspsp_country: str, expires_minutes: int = 15) -> str:
+def create_oauth_state(user_id: str, aspsp_name: str, aspsp_country: str, expires_minutes: int = 15) -> str:
     """Firma el `state` que viaja ida y vuelta por el navegador durante la
     autorizacion PSD2. No necesitamos guardarlo en el servidor: el propio
-    token, firmado, es la fuente de verdad al volver en /banks/callback.
+    token, firmado, es la fuente de verdad al volver en /banks/callback. Lleva
+    el user_id porque ese callback lo llama el banco sin Authorization header,
+    asi que es la unica forma de saber a que usuario asignar la cuenta.
     """
     now = int(time.time())
     payload = {
         "type": STATE_TOKEN_TYPE,
+        "user_id": user_id,
         "aspsp_name": aspsp_name,
         "aspsp_country": aspsp_country,
         "iat": now,

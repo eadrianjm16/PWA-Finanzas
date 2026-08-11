@@ -19,10 +19,11 @@ def _month_bounds(year: int, month: int) -> tuple[datetime, datetime]:
     return start, end
 
 
-def _visible_transactions(db: Session, start: datetime, end: datetime) -> list[models.Transaction]:
+def _visible_transactions(db: Session, user_id: str, start: datetime, end: datetime) -> list[models.Transaction]:
     return (
         db.query(models.Transaction)
         .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.user_id == user_id)
         .filter(models.LinkedAccount.is_visible.is_(True))
         .filter(models.Transaction.booking_date >= start)
         .filter(models.Transaction.booking_date <= end)
@@ -42,14 +43,14 @@ def _previous_months(year: int, month: int, count: int) -> list[tuple[int, int]]
     return list(reversed(months))
 
 
-def build_summary(db: Session, year: int, month: int) -> dict:
+def build_summary(db: Session, user_id: str, year: int, month: int) -> dict:
     # Una sola consulta para los 6 meses + el actual, agrupada en memoria por
     # (año, mes), en vez de una consulta de red separada por mes (7 antes)
     # -con una base de datos remota como Turso, cada consulta extra cuenta-.
     months = _previous_months(year, month, 6)
     range_start, _ = _month_bounds(*months[0])
     _, range_end = _month_bounds(*months[-1])
-    all_transactions = _visible_transactions(db, range_start, range_end)
+    all_transactions = _visible_transactions(db, user_id, range_start, range_end)
 
     by_month: dict[tuple[int, int], list[models.Transaction]] = {}
     for tx in all_transactions:
@@ -72,7 +73,7 @@ def build_summary(db: Session, year: int, month: int) -> dict:
             if tx.category_id is not None:
                 spend_by_category[tx.category_id] = spend_by_category.get(tx.category_id, 0) + amount
 
-    budgets = db.query(models.Budget).all()
+    budgets = db.query(models.Budget).join(models.Category).filter(models.Category.user_id == user_id).all()
     budgeted_total = sum(float(b.monthly_limit) for b in budgets)
     budget_used_ratio = (expense / budgeted_total) if budgeted_total > 0 else None
 
@@ -94,7 +95,7 @@ def build_summary(db: Session, year: int, month: int) -> dict:
             }
         )
 
-    categories = {c.id: c for c in db.query(models.Category).all()}
+    categories = {c.id: c for c in db.query(models.Category).filter_by(user_id=user_id).all()}
     breakdown = [
         {"category": categories[category_id], "spent": spent}
         for category_id, spent in sorted(spend_by_category.items(), key=lambda kv: -kv[1])

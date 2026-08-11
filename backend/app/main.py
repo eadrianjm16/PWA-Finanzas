@@ -9,8 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from . import models
 from .config import settings
-from .database import SessionLocal, engine
-from .default_categories import seed_if_needed
+from .database import engine
 from .rate_limit import limiter
 from .routers import accounts, alerts, analysis, auth, banks, budgets, categories, debtors, transactions
 from .services.enable_banking import EnableBankingClient
@@ -21,12 +20,10 @@ if settings.sentry_dsn:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Solo crea tablas que falten (no altera las existentes): util para dev/tests
+    # locales con base de datos nueva. Las migraciones reales sobre datos ya
+    # existentes (anadir columnas, constraints) las gestiona Alembic.
     models.Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_if_needed(db)
-    finally:
-        db.close()
 
     app.state.eb_client = EnableBankingClient()
     try:

@@ -5,16 +5,17 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..deps import get_db_session, require_auth
+from ..deps import CurrentUser, get_current_user, get_db_session
 
-router = APIRouter(prefix="/api/budgets", tags=["budgets"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/budgets", tags=["budgets"])
 
 
-def _spent_this_month(db: Session, category_id: str) -> float:
+def _spent_this_month(db: Session, user: CurrentUser, category_id: str) -> float:
     start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     transactions = (
         db.query(models.Transaction)
         .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.user_id == user.id)
         .filter(models.LinkedAccount.is_visible.is_(True))
         .filter(models.Transaction.category_id == category_id)
         .filter(models.Transaction.credit_debit_indicator == "DBIT")
@@ -24,7 +25,7 @@ def _spent_this_month(db: Session, category_id: str) -> float:
     return sum(abs(float(tx.amount)) for tx in transactions)
 
 
-def _spent_by_category_this_month(db: Session) -> dict[str, float]:
+def _spent_by_category_this_month(db: Session, user: CurrentUser) -> dict[str, float]:
     """Version agrupada de _spent_this_month para el listado: una sola
     consulta con GROUP BY en vez de una consulta por categoria (con una base
     de datos remota como Turso, cada consulta extra es un round-trip de red)."""
@@ -32,6 +33,7 @@ def _spent_by_category_this_month(db: Session) -> dict[str, float]:
     rows = (
         db.query(models.Transaction.category_id, func.sum(models.Transaction.amount))
         .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.user_id == user.id)
         .filter(models.LinkedAccount.is_visible.is_(True))
         .filter(models.Transaction.credit_debit_indicator == "DBIT")
         .filter(models.Transaction.booking_date >= start)
@@ -42,10 +44,15 @@ def _spent_by_category_this_month(db: Session) -> dict[str, float]:
 
 
 @router.get("", response_model=list[schemas.BudgetOut])
-def list_budgets(db: Session = Depends(get_db_session)) -> list[schemas.BudgetOut]:
-    categories = db.query(models.Category).order_by(models.Category.sort_order).all()
-    budgets_by_category = {b.category_id: b for b in db.query(models.Budget).all()}
-    spent_by_category = _spent_by_category_this_month(db)
+def list_budgets(
+    db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
+) -> list[schemas.BudgetOut]:
+    categories = db.query(models.Category).filter_by(user_id=user.id).order_by(models.Category.sort_order).all()
+    budgets_by_category = {
+        b.category_id: b
+        for b in db.query(models.Budget).join(models.Category).filter(models.Category.user_id == user.id).all()
+    }
+    spent_by_category = _spent_by_category_this_month(db, user)
     return [
         schemas.BudgetOut(
             category=category,
@@ -62,9 +69,12 @@ def list_budgets(db: Session = Depends(get_db_session)) -> list[schemas.BudgetOu
 
 @router.put("/{category_id}", response_model=schemas.BudgetOut)
 def upsert_budget(
-    category_id: str, payload: schemas.BudgetUpsertRequest, db: Session = Depends(get_db_session)
+    category_id: str,
+    payload: schemas.BudgetUpsertRequest,
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(get_current_user),
 ) -> schemas.BudgetOut:
-    category = db.get(models.Category, category_id)
+    category = db.query(models.Category).filter_by(id=category_id, user_id=user.id).first()
     if category is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Categoría no encontrada")
 
@@ -79,12 +89,17 @@ def upsert_budget(
     return schemas.BudgetOut(
         category=category,
         monthly_limit=float(payload.monthly_limit),
-        spent_this_month=_spent_this_month(db, category_id),
+        spent_this_month=_spent_this_month(db, user, category_id),
     )
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_budget(category_id: str, db: Session = Depends(get_db_session)) -> None:
+def delete_budget(
+    category_id: str, db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
+) -> None:
+    category = db.query(models.Category).filter_by(id=category_id, user_id=user.id).first()
+    if category is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Categoría no encontrada")
     budget = db.get(models.Budget, category_id)
     if budget is not None:
         db.delete(budget)

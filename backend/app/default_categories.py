@@ -20,9 +20,10 @@ SEED: list[tuple[str, str]] = [
 ]
 
 
-def seed_if_needed(db: Session) -> None:
-    if db.query(models.Category).count() > 0:
+def seed_categories_for_user(db: Session, user_id: str) -> None:
+    existing = db.query(models.Category).filter_by(user_id=user_id).count()
+    if existing > 0:
         return
     for index, (name, icon) in enumerate(SEED):
-        db.add(models.Category(name=name, system_icon_name=icon, sort_order=index))
+        db.add(models.Category(user_id=user_id, name=name, system_icon_name=icon, sort_order=index))
     db.commit()
