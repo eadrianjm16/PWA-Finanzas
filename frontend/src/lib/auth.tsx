@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { apiFetch, clearToken, getToken, setToken } from "./api";
+import { clearPersistedSWRCache } from "@/components/SWRProvider";
 
 interface AuthContextValue {
   isAuthenticated: boolean | null; // null = todavía no se ha comprobado (evita parpadeo)
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     clearToken();
+    clearPersistedSWRCache();
     setIsAuthenticated(false);
   }, []);
 

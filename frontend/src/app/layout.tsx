@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import BottomNav from "@/components/BottomNav";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import SWRProvider from "@/components/SWRProvider";
 
 export const metadata: Metadata = {
   title: "Finanzas",
@@ -30,10 +31,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className="h-full antialiased">
       <body className="min-h-full">
-        <AuthProvider>
-          {children}
-          <BottomNav />
-        </AuthProvider>
+        <SWRProvider>
+          <AuthProvider>
+            {children}
+            <BottomNav />
+          </AuthProvider>
+        </SWRProvider>
         <ServiceWorkerRegister />
       </body>
     </html>
