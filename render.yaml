@@ -23,3 +23,5 @@ services:
         sync: false
       - key: BACKEND_PUBLIC_URL
         sync: false
+      - key: SENTRY_DSN
+        sync: false

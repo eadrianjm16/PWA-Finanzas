@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -13,6 +14,9 @@ from .default_categories import seed_if_needed
 from .rate_limit import limiter
 from .routers import accounts, alerts, analysis, auth, banks, budgets, categories, debtors, transactions
 from .services.enable_banking import EnableBankingClient
+
+if settings.sentry_dsn:
+    sentry_sdk.init(dsn=settings.sentry_dsn, send_default_pii=False, traces_sample_rate=0.1)
 
 
 @asynccontextmanager

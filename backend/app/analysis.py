@@ -30,20 +30,6 @@ def _visible_transactions(db: Session, start: datetime, end: datetime) -> list[m
     )
 
 
-def _month_totals(db: Session, year: int, month: int) -> tuple[float, float]:
-    """Solo income/expense (usado en la serie de 6 meses, sin desglosar no_computable)."""
-    start, end = _month_bounds(year, month)
-    income = 0.0
-    expense = 0.0
-    for tx in _visible_transactions(db, start, end):
-        amount = abs(float(tx.amount))
-        if tx.credit_debit_indicator == "CRDT":
-            income += amount
-        else:
-            expense += amount
-    return income, expense
-
-
 def _previous_months(year: int, month: int, count: int) -> list[tuple[int, int]]:
     months = []
     y, m = year, month
@@ -57,13 +43,24 @@ def _previous_months(year: int, month: int, count: int) -> list[tuple[int, int]]
 
 
 def build_summary(db: Session, year: int, month: int) -> dict:
-    start, end = _month_bounds(year, month)
-    transactions = _visible_transactions(db, start, end)
-    internal_transfer_refs = detect_internal_transfers(transactions)
+    # Una sola consulta para los 6 meses + el actual, agrupada en memoria por
+    # (año, mes), en vez de una consulta de red separada por mes (7 antes)
+    # -con una base de datos remota como Turso, cada consulta extra cuenta-.
+    months = _previous_months(year, month, 6)
+    range_start, _ = _month_bounds(*months[0])
+    _, range_end = _month_bounds(*months[-1])
+    all_transactions = _visible_transactions(db, range_start, range_end)
+
+    by_month: dict[tuple[int, int], list[models.Transaction]] = {}
+    for tx in all_transactions:
+        by_month.setdefault((tx.booking_date.year, tx.booking_date.month), []).append(tx)
+
+    current_month_transactions = by_month.get((year, month), [])
+    internal_transfer_refs = detect_internal_transfers(current_month_transactions)
 
     income = expense = no_computable = 0.0
     spend_by_category: dict[str, float] = {}
-    for tx in transactions:
+    for tx in current_month_transactions:
         amount = abs(float(tx.amount))
         if tx.entry_reference in internal_transfer_refs:
             no_computable += amount
@@ -80,8 +77,14 @@ def build_summary(db: Session, year: int, month: int) -> dict:
     budget_used_ratio = (expense / budgeted_total) if budgeted_total > 0 else None
 
     last_six_months = []
-    for y, m in _previous_months(year, month, 6):
-        month_income, month_expense = _month_totals(db, y, m)
+    for y, m in months:
+        month_income = month_expense = 0.0
+        for tx in by_month.get((y, m), []):
+            amount = abs(float(tx.amount))
+            if tx.credit_debit_indicator == "CRDT":
+                month_income += amount
+            else:
+                month_expense += amount
         last_six_months.append(
             {
                 "month": f"{y:04d}-{m:02d}",

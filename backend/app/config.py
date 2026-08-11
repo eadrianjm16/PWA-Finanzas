@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:3000"
     backend_public_url: str = "http://localhost:8000"
 
+    # Monitorizacion de errores (opcional). Vacio = Sentry desactivado.
+    sentry_dsn: str = ""
+
     @property
     def eb_redirect_url(self) -> str:
         return f"{self.backend_public_url.rstrip('/')}/api/banks/callback"
