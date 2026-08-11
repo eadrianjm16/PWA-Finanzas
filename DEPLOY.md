@@ -62,3 +62,32 @@ En el panel de Enable Banking, añade como redirect URL:
   Banking hasta el final (no solo generar la URL de autorización).
 - Confirmar que tras un redeploy de Render los datos siguen ahí (prueba de
   que Turso está funcionando, no SQLite efímero).
+
+## 6. Monitorización de errores (opcional, Sentry)
+
+Backend y frontend tienen soporte para Sentry ya integrado en el código,
+desactivado por defecto (si no defines el DSN, no hace nada).
+
+1. Crea una cuenta gratis en [sentry.io](https://sentry.io) (plan Developer,
+   gratis) y un proyecto Python (para el backend) y otro Next.js (frontend).
+2. Backend, en Render → Environment: añade `SENTRY_DSN` con el DSN del
+   proyecto Python.
+3. Frontend, en Vercel → Environment Variables: añade
+   `NEXT_PUBLIC_SENTRY_DSN` con el DSN del proyecto Next.js (Production +
+   Preview) y haz **Redeploy**.
+
+## 7. Backups de la base de datos
+
+Turso hace backups automáticos en cada commit — no hay que configurar nada.
+En el plan gratuito, puedes restaurar a cualquier punto de las **últimas 24
+horas** (point-in-time recovery). Para restaurar: crea una base nueva a
+partir de la existente en el timestamp deseado con `turso db create --from-db
+pwa-finanzas --timestamp <ISO-8601>`, y apunta `DATABASE_URL` a la nueva base
+si confirmas que es la que quieres conservar.
+
+## 8. Rotar secretos tras las pruebas
+
+`APP_JWT_SECRET` y `APP_PASSWORD_HASH` se generaron durante el desarrollo
+inicial — una vez todo funciona, genera unos nuevos (mismos comandos del
+paso 2) y actualízalos en Render. Al cambiar `APP_JWT_SECRET` se invalidan
+todas las sesiones activas (tendrás que volver a hacer login).
