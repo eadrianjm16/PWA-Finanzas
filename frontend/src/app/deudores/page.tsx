@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
+import { ChevronRight, Plus, Users } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import { SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { Debtor } from "@/lib/types";
@@ -15,9 +17,18 @@ function balanceLabel(balance: number): string {
 }
 
 function balanceClass(balance: number): string {
-  if (balance > 0) return "text-red-600";
-  if (balance < 0) return "text-amber-600";
-  return "text-neutral-500";
+  if (balance > 0) return "text-danger";
+  if (balance < 0) return "text-warning";
+  return "text-muted";
+}
+
+function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
 function DeudoresContent() {
@@ -45,53 +56,67 @@ function DeudoresContent() {
   }
 
   return (
-    <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
+    <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Deudores</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Deudores</h1>
         <button
           onClick={() => setAdding((v) => !v)}
-          className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
+          className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast shadow-[var(--shadow-card)] transition active:scale-95"
         >
-          + Persona
+          <Plus className="h-4 w-4" strokeWidth={2.5} />
+          Persona
         </button>
       </div>
 
       {adding && (
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-surface-border bg-surface p-2 shadow-[var(--shadow-card)]">
           <input
             autoFocus
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Nombre"
-            className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
+            className="flex-1 rounded-xl border-none bg-transparent px-3 py-2 text-sm outline-none"
           />
           <button
             onClick={addDebtor}
             disabled={saving}
-            className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+            className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
           >
             Añadir
           </button>
         </div>
       )}
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {!debtors && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {error && <p className="mb-4 text-sm text-danger">{error}</p>}
+      {!debtors && <SkeletonList rows={4} />}
       {debtors?.length === 0 && (
-        <p className="text-sm text-neutral-500">Sin deudores. Añade una persona con &quot;+ Persona&quot;.</p>
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-surface-border px-6 py-10 text-center">
+          <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft">
+            <Users className="h-6 w-6 text-brand" />
+          </span>
+          <p className="text-sm text-muted">Sin deudores.</p>
+          <p className="text-sm text-muted">Añade una persona con &quot;Persona&quot;.</p>
+        </div>
       )}
 
-      <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-        {debtors?.map((debtor) => (
-          <li key={debtor.id}>
-            <Link href={`/deudores/${debtor.id}`} className="flex items-center justify-between px-4 py-3">
-              <span className="text-sm font-medium">{debtor.name}</span>
+      <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+        {debtors?.map((debtor, index) => (
+          <li key={debtor.id} className={index > 0 ? "border-t border-surface-border" : ""}>
+            <Link
+              href={`/deudores/${debtor.id}`}
+              className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-hover"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand">
+                {initials(debtor.name)}
+              </span>
+              <span className="flex-1 text-sm font-medium">{debtor.name}</span>
               <div className="text-right">
-                <p className="text-xs text-neutral-500">{balanceLabel(debtor.balance)}</p>
-                <p className={`text-sm font-semibold ${balanceClass(debtor.balance)}`}>
+                <p className="text-xs text-muted">{balanceLabel(debtor.balance)}</p>
+                <p className={`tabular-nums text-sm font-semibold ${balanceClass(debtor.balance)}`}>
                   {formatMoney(Math.abs(debtor.balance), "EUR")}
                 </p>
               </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-soft" />
             </Link>
           </li>
         ))}

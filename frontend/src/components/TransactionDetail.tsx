@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check, CheckCircle2, ChevronLeft, Circle, Split, Tag, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { CategoryIcon } from "@/lib/icons";
@@ -115,36 +116,52 @@ export default function TransactionDetail({
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex flex-col bg-white dark:bg-neutral-950">
-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
-        <button onClick={mode === "view" ? onClose : () => setMode("view")} className="text-sm text-neutral-500">
-          {mode === "view" ? "Cerrar" : "‹ Atrás"}
+    <div className="fixed inset-0 z-30 flex flex-col bg-background">
+      <div className="flex items-center justify-between border-b border-surface-border bg-surface px-4 py-3">
+        <button
+          onClick={mode === "view" ? onClose : () => setMode("view")}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+        >
+          {mode === "view" ? <X className="h-[18px] w-[18px]" /> : <ChevronLeft className="h-[18px] w-[18px]" />}
         </button>
         <h2 className="text-sm font-semibold">
           {mode === "recategorize" ? "Recategorizar" : mode === "split" ? "Dividir" : "Movimiento"}
         </h2>
-        <div className="w-12" />
+        <div className="w-9" />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-5">
         {mode === "view" && (
           <>
-            <p className="text-sm font-medium">{transaction.counterparty_name || transaction.remittance_information}</p>
-            <p className="mb-6 text-2xl font-semibold">
-              {transaction.credit_debit_indicator === "CRDT" ? "+" : "-"}
-              {formatMoney(total, transaction.currency)}
-            </p>
+            <div className="mb-6 flex flex-col items-center text-center">
+              <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-surface-hover">
+                <CategoryIcon name={transaction.category?.system_icon_name ?? "help-circle"} className="h-6 w-6 text-muted" />
+              </span>
+              <p className="text-sm font-medium text-muted">
+                {transaction.counterparty_name || transaction.remittance_information}
+              </p>
+              <p
+                className={`tabular-nums mt-1 text-3xl font-semibold ${
+                  transaction.credit_debit_indicator === "CRDT" ? "text-success" : "text-foreground"
+                }`}
+              >
+                {transaction.credit_debit_indicator === "CRDT" ? "+" : "-"}
+                {formatMoney(total, transaction.currency)}
+              </p>
+            </div>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => setMode("recategorize")}
-                className="rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm font-medium dark:border-neutral-800"
+                className="flex items-center gap-3 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-left text-sm font-medium shadow-[var(--shadow-card)]"
               >
+                <Tag className="h-4 w-4 text-brand" />
                 Recategorizar
               </button>
               <button
                 onClick={() => setMode("split")}
-                className="rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm font-medium dark:border-neutral-800"
+                className="flex items-center gap-3 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-left text-sm font-medium shadow-[var(--shadow-card)]"
               >
+                <Split className="h-4 w-4 text-brand" />
                 Dividir con…
               </button>
             </div>
@@ -153,59 +170,73 @@ export default function TransactionDetail({
 
         {mode === "recategorize" && (
           <>
-            <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-              {categories?.map((category) => (
-                <li key={category.id}>
+            <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+              {categories?.map((category, index) => (
+                <li key={category.id} className={index > 0 ? "border-t border-surface-border" : ""}>
                   <button
                     onClick={() => setCategory(category.id)}
                     disabled={saving}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm disabled:opacity-50"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-surface-hover disabled:opacity-50"
                   >
-                    <CategoryIcon name={category.system_icon_name} className="h-4 w-4 text-neutral-500" />
-                    <span className="flex-1">{category.name}</span>
-                    {transaction.category?.id === category.id && <span className="text-neutral-400">✓</span>}
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-hover">
+                      <CategoryIcon name={category.system_icon_name} className="h-4 w-4 text-muted" />
+                    </span>
+                    <span className="flex-1 font-medium">{category.name}</span>
+                    {transaction.category?.id === category.id && <Check className="h-4 w-4 text-brand" />}
                   </button>
                 </li>
               ))}
             </ul>
-            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+            {error && <p className="mt-3 text-sm text-danger">{error}</p>}
           </>
         )}
 
         {mode === "split" && (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-neutral-500">Total: {formatMoney(total, transaction.currency)}</p>
+            <p className="text-sm text-muted">Total: {formatMoney(total, transaction.currency)}</p>
 
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeMe} onChange={(e) => setIncludeMe(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={includeMe}
+                onChange={(e) => setIncludeMe(e.target.checked)}
+                className="h-4 w-4 accent-[var(--brand)]"
+              />
               Incluirme en el reparto
             </label>
 
-            <div className="flex overflow-hidden rounded-lg border border-neutral-300 text-sm dark:border-neutral-700">
+            <div className="flex overflow-hidden rounded-xl border border-surface-border text-sm">
               <button
                 onClick={() => setSplitMode("equal")}
-                className={`flex-1 py-2 ${splitMode === "equal" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : ""}`}
+                className={`flex-1 py-2 transition ${splitMode === "equal" ? "bg-brand text-brand-contrast" : "bg-surface"}`}
               >
                 Por igual
               </button>
               <button
                 onClick={() => setSplitMode("fixed")}
-                className={`flex-1 py-2 ${splitMode === "fixed" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : ""}`}
+                className={`flex-1 py-2 transition ${splitMode === "fixed" ? "bg-brand text-brand-contrast" : "bg-surface"}`}
               >
                 Cantidad fija
               </button>
             </div>
 
-            <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-              {debtors?.map((debtor) => (
-                <li key={debtor.id} className="flex items-center gap-3 px-4 py-3">
-                  <button onClick={() => toggleDebtor(debtor.id)} className="text-lg leading-none" aria-label="Seleccionar">
-                    {selected.has(debtor.id) ? "●" : "○"}
+            <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+              {debtors?.map((debtor, index) => (
+                <li
+                  key={debtor.id}
+                  className={`flex items-center gap-3 px-4 py-3 ${index > 0 ? "border-t border-surface-border" : ""}`}
+                >
+                  <button onClick={() => toggleDebtor(debtor.id)} aria-label="Seleccionar">
+                    {selected.has(debtor.id) ? (
+                      <CheckCircle2 className="h-5 w-5 text-brand" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-muted-soft" />
+                    )}
                   </button>
-                  <span className="flex-1 text-sm">{debtor.name}</span>
+                  <span className="flex-1 text-sm font-medium">{debtor.name}</span>
                   {selected.has(debtor.id) &&
                     (splitMode === "equal" ? (
-                      <span className="text-sm text-neutral-500">{formatMoney(equalShare, "EUR")}</span>
+                      <span className="tabular-nums text-sm text-muted">{formatMoney(equalShare, "EUR")}</span>
                     ) : (
                       <input
                         type="number"
@@ -213,12 +244,12 @@ export default function TransactionDetail({
                         value={fixedAmounts[debtor.id] ?? ""}
                         onChange={(e) => setFixedAmounts((prev) => ({ ...prev, [debtor.id]: e.target.value }))}
                         placeholder="0.00"
-                        className="w-20 rounded-lg border border-neutral-300 px-2 py-1 text-right text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
+                        className="w-20 rounded-lg border border-surface-border bg-background px-2 py-1 text-right text-sm outline-none focus:border-brand"
                       />
                     ))}
                 </li>
               ))}
-              {debtors?.length === 0 && <li className="px-4 py-6 text-sm text-neutral-500">Sin deudores todavía</li>}
+              {debtors?.length === 0 && <li className="px-4 py-6 text-sm text-muted">Sin deudores todavía</li>}
             </ul>
 
             <div className="flex items-center gap-2">
@@ -226,28 +257,28 @@ export default function TransactionDetail({
                 value={newDebtorName}
                 onChange={(e) => setNewDebtorName(e.target.value)}
                 placeholder="Añadir persona nueva"
-                className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
+                className="flex-1 rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
               />
               <button
                 onClick={addDebtorInline}
-                className="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700"
+                className="rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm font-medium"
               >
                 Añadir
               </button>
             </div>
 
             {splitMode === "fixed" && (
-              <p className={`text-xs ${fixedAssigned > total ? "text-red-600" : "text-neutral-500"}`}>
+              <p className={`text-xs ${fixedAssigned > total ? "text-danger" : "text-muted"}`}>
                 Asignado: {formatMoney(fixedAssigned, "EUR")} / {formatMoney(total, "EUR")}
               </p>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-danger">{error}</p>}
 
             <button
               onClick={saveSplit}
               disabled={!canSaveSplit || saving}
-              className="rounded-xl bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+              className="rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-contrast disabled:opacity-50"
             >
               Guardar
             </button>

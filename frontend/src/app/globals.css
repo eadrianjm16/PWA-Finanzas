@@ -1,20 +1,75 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f7f8;
-  --foreground: #171717;
+  --background: #f4f4f8;
+  --foreground: #0b0b12;
+  --surface: #ffffff;
+  --surface-hover: #fafafa;
+  --surface-border: rgba(10, 10, 20, 0.07);
+  --muted: #6b6b78;
+  --muted-soft: #9494a0;
+
+  --brand: #5b5ff2;
+  --brand-dark: #4438d1;
+  --brand-soft: rgba(91, 95, 242, 0.1);
+  --brand-contrast: #ffffff;
+
+  --success: #0ea968;
+  --success-soft: rgba(14, 169, 104, 0.12);
+  --danger: #e64c53;
+  --danger-soft: rgba(230, 76, 83, 0.12);
+  --warning: #d98c1a;
+  --warning-soft: rgba(217, 140, 26, 0.14);
+
+  --shadow-card: 0 1px 2px rgba(10, 10, 20, 0.04), 0 10px 24px -12px rgba(10, 10, 20, 0.14);
+  --shadow-pop: 0 4px 12px rgba(10, 10, 20, 0.08), 0 16px 40px -16px rgba(10, 10, 20, 0.22);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-border: var(--surface-border);
+  --color-muted: var(--muted);
+  --color-muted-soft: var(--muted-soft);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #08080c;
+    --foreground: #f2f2f6;
+    --surface: #131318;
+    --surface-hover: #1a1a21;
+    --surface-border: rgba(255, 255, 255, 0.08);
+    --muted: #9c9ca8;
+    --muted-soft: #6c6c78;
+
+    --brand: #7477f5;
+    --brand-dark: #5b5ff2;
+    --brand-soft: rgba(116, 119, 245, 0.16);
+    --brand-contrast: #ffffff;
+
+    --success: #22c586;
+    --success-soft: rgba(34, 197, 134, 0.16);
+    --danger: #f0666c;
+    --danger-soft: rgba(240, 102, 108, 0.16);
+    --warning: #e6a13a;
+    --warning-soft: rgba(230, 161, 58, 0.16);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 24px -12px rgba(0, 0, 0, 0.5);
+    --shadow-pop: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px -16px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -22,4 +77,13 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--brand);
+  color: var(--brand-contrast);
 }

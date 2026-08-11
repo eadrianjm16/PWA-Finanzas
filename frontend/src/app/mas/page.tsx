@@ -1,37 +1,48 @@
 "use client";
 
 import Link from "next/link";
+import { Bell, ChevronRight, LogOut, Tags, Users } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { useAuth } from "@/lib/auth";
 
 const LINKS = [
-  { href: "/alertas", label: "Alertas" },
-  { href: "/deudores", label: "Deudores" },
-  { href: "/categorias", label: "Categorías" },
+  { href: "/alertas", label: "Alertas", icon: Bell },
+  { href: "/deudores", label: "Deudores", icon: Users },
+  { href: "/categorias", label: "Categorías", icon: Tags },
 ];
 
 function MasContent() {
   const { logout } = useAuth();
 
   return (
-    <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
-      <h1 className="mb-6 text-xl font-semibold">Más</h1>
+    <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">Más</h1>
 
-      <ul className="mb-6 divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-        {LINKS.map((link) => (
-          <li key={link.href}>
-            <Link href={link.href} className="flex items-center justify-between px-4 py-3 text-sm font-medium">
-              {link.label}
-              <span className="text-neutral-400">›</span>
-            </Link>
-          </li>
-        ))}
+      <ul className="mb-6 overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+        {LINKS.map((link, index) => {
+          const Icon = link.icon;
+          return (
+            <li key={link.href} className={index > 0 ? "border-t border-surface-border" : ""}>
+              <Link
+                href={link.href}
+                className="flex items-center gap-3 px-4 py-3.5 text-sm font-medium transition hover:bg-surface-hover"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-hover">
+                  <Icon className="h-4 w-4 text-muted" />
+                </span>
+                <span className="flex-1">{link.label}</span>
+                <ChevronRight className="h-4 w-4 text-muted-soft" />
+              </Link>
+            </li>
+          );
+        })}
       </ul>
 
       <button
         onClick={logout}
-        className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm font-medium text-red-600 dark:border-neutral-800"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-danger/20 bg-danger-soft px-4 py-3.5 text-sm font-medium text-danger"
       >
+        <LogOut className="h-4 w-4" />
         Salir
       </button>
     </main>

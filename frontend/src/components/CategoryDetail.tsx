@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
@@ -39,33 +40,40 @@ export default function CategoryDetail({
   const total = (transactions ?? []).reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
 
   return (
-    <div className="fixed inset-0 z-20 flex flex-col bg-white dark:bg-neutral-950">
-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
+    <div className="fixed inset-0 z-20 flex flex-col bg-background">
+      <div className="flex items-center justify-between border-b border-surface-border bg-surface px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">{categoryName}</h2>
-          {transactions && <p className="text-xs text-neutral-500">{formatMoney(total, "EUR")}</p>}
+          {transactions && <p className="tabular-nums text-xs text-muted">{formatMoney(total, "EUR")}</p>}
         </div>
-        <button onClick={onClose} className="text-sm text-neutral-500">
-          Cerrar
+        <button
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+          aria-label="Cerrar"
+        >
+          <X className="h-[18px] w-[18px]" />
         </button>
       </div>
 
-      {error && <p className="px-4 pt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="px-4 pt-3 text-sm text-danger">{error}</p>}
 
-      <div className="flex-1 overflow-y-auto">
-        {transactions === null && <p className="px-4 py-6 text-sm text-neutral-500">Cargando…</p>}
-        <ul className="divide-y divide-neutral-100 dark:divide-neutral-900">
-          {transactions?.map((tx) => (
-            <li key={tx.entry_reference} className="flex items-center justify-between px-4 py-3">
-              <span className="truncate pr-3 text-sm">
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {transactions === null && <p className="px-1 py-6 text-sm text-muted">Cargando…</p>}
+        <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+          {transactions?.map((tx, index) => (
+            <li
+              key={tx.entry_reference}
+              className={`flex items-center justify-between px-4 py-3.5 ${index > 0 ? "border-t border-surface-border" : ""}`}
+            >
+              <span className="truncate pr-3 text-sm font-medium">
                 {tx.counterparty_name || tx.remittance_information || "Movimiento"}
               </span>
-              <span className="shrink-0 text-sm font-medium">{formatMoney(Math.abs(tx.amount), tx.currency)}</span>
+              <span className="tabular-nums shrink-0 text-sm font-semibold">
+                {formatMoney(Math.abs(tx.amount), tx.currency)}
+              </span>
             </li>
           ))}
-          {transactions?.length === 0 && (
-            <li className="px-4 py-6 text-sm text-neutral-500">Sin movimientos este mes.</li>
-          )}
+          {transactions?.length === 0 && <li className="px-4 py-6 text-sm text-muted">Sin movimientos este mes.</li>}
         </ul>
       </div>
     </div>

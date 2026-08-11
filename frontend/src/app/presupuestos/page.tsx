@@ -3,6 +3,8 @@
 import { useState } from "react";
 import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
+import { SkeletonList } from "@/components/Skeleton";
+import { CategoryIcon } from "@/lib/icons";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { Budget } from "@/lib/types";
@@ -56,14 +58,14 @@ function BudgetsContent() {
   }
 
   return (
-    <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
-      <h1 className="mb-6 text-xl font-semibold">Presupuestos</h1>
+    <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">Presupuestos</h1>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {!budgets && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {error && <p className="mb-4 text-sm text-danger">{error}</p>}
+      {!budgets && <SkeletonList rows={6} />}
 
-      <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-        {budgets?.map((budget) => {
+      <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+        {budgets?.map((budget, index) => {
           const isEditing = editingId === budget.category.id;
           const ratio =
             budget.monthly_limit && budget.monthly_limit > 0
@@ -72,13 +74,16 @@ function BudgetsContent() {
           const over = budget.monthly_limit != null && budget.spent_this_month > budget.monthly_limit;
 
           return (
-            <li key={budget.category.id} className="px-4 py-3">
+            <li key={budget.category.id} className={`px-4 py-3.5 ${index > 0 ? "border-t border-surface-border" : ""}`}>
               <button
                 onClick={() => (isEditing ? setEditingId(null) : startEdit(budget))}
-                className="flex w-full items-center justify-between text-left"
+                className="flex w-full items-center gap-3 text-left"
               >
-                <span className="text-sm font-medium">{budget.category.name}</span>
-                <span className="text-xs text-neutral-500">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-hover">
+                  <CategoryIcon name={budget.category.system_icon_name} className="h-4 w-4 text-muted" />
+                </span>
+                <span className="flex-1 text-sm font-medium">{budget.category.name}</span>
+                <span className="tabular-nums shrink-0 text-xs text-muted">
                   {budget.monthly_limit != null
                     ? `${formatMoney(budget.spent_this_month, "EUR")} / ${formatMoney(budget.monthly_limit, "EUR")}`
                     : "Sin límite"}
@@ -86,9 +91,9 @@ function BudgetsContent() {
               </button>
 
               {budget.monthly_limit != null && (
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-surface-hover">
                   <div
-                    className={`h-full rounded-full ${over ? "bg-red-500" : "bg-neutral-900 dark:bg-white"}`}
+                    className={`h-full rounded-full transition-all ${over ? "bg-danger" : "bg-brand"}`}
                     style={{ width: `${ratio * 100}%` }}
                   />
                 </div>
@@ -103,12 +108,12 @@ function BudgetsContent() {
                     value={draftLimit}
                     onChange={(e) => setDraftLimit(e.target.value)}
                     placeholder="Límite mensual (EUR)"
-                    className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
+                    className="flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-brand focus:ring-4 focus:ring-brand-soft"
                   />
                   <button
                     onClick={() => save(budget.category.id)}
                     disabled={saving}
-                    className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+                    className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
                   >
                     Guardar
                   </button>
@@ -116,7 +121,7 @@ function BudgetsContent() {
                     <button
                       onClick={() => remove(budget.category.id)}
                       disabled={saving}
-                      className="rounded-lg px-3 py-2 text-sm text-red-600 disabled:opacity-50"
+                      className="rounded-xl px-3 py-2 text-sm font-medium text-danger disabled:opacity-50"
                     >
                       Quitar
                     </button>

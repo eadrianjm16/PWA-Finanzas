@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { ChevronDown, ChevronUp, Plus, RotateCw, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import CategoryEditor from "@/components/CategoryEditor";
+import { SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { CategoryIcon } from "@/lib/icons";
 import type { Category } from "@/lib/types";
@@ -78,46 +80,60 @@ function CategoriasContent() {
   }
 
   return (
-    <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
+    <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Categorías</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Categorías</h1>
         <button
           onClick={() => setEditorTarget("new")}
-          className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
+          className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast shadow-[var(--shadow-card)] transition active:scale-95"
         >
-          + Nueva
+          <Plus className="h-4 w-4" strokeWidth={2.5} />
+          Nueva
         </button>
       </div>
 
-      {notice && <p className="mb-4 rounded-lg bg-neutral-100 px-3 py-2 text-sm dark:bg-neutral-900">{notice}</p>}
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {!categories && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {notice && (
+        <p className="mb-4 rounded-xl bg-brand-soft px-3.5 py-2.5 text-sm font-medium text-brand">{notice}</p>
+      )}
+      {error && <p className="mb-4 text-sm text-danger">{error}</p>}
+      {!categories && <SkeletonList rows={6} />}
 
-      <ul className="mb-6 divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+      <ul className="mb-6 overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
         {categories?.map((category, index) => (
-          <li key={category.id} className="flex items-center gap-3 px-4 py-3">
-            <button
-              onClick={() => setEditorTarget(category)}
-              className="flex flex-1 items-center gap-3 text-left"
-            >
-              <CategoryIcon name={category.system_icon_name} className="h-5 w-5 shrink-0 text-neutral-500" />
+          <li
+            key={category.id}
+            className={`flex items-center gap-2 px-4 py-3 ${index > 0 ? "border-t border-surface-border" : ""}`}
+          >
+            <button onClick={() => setEditorTarget(category)} className="flex flex-1 items-center gap-3 text-left">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-hover">
+                <CategoryIcon name={category.system_icon_name} className="h-4 w-4 text-muted" />
+              </span>
               <span className="text-sm font-medium">{category.name}</span>
             </button>
-            <div className="flex items-center gap-1 text-neutral-400">
-              <button onClick={() => move(index, -1)} disabled={index === 0} className="px-1 disabled:opacity-30" aria-label="Subir">
-                ↑
+            <div className="flex items-center gap-0.5 text-muted-soft">
+              <button
+                onClick={() => move(index, -1)}
+                disabled={index === 0}
+                className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-surface-hover disabled:opacity-30"
+                aria-label="Subir"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => move(index, 1)}
                 disabled={index === (categories?.length ?? 0) - 1}
-                className="px-1 disabled:opacity-30"
+                className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-surface-hover disabled:opacity-30"
                 aria-label="Bajar"
               >
-                ↓
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {category.name !== OTROS_NAME && (
-                <button onClick={() => deleteCategory(category)} className="px-1 text-red-500" aria-label="Borrar">
-                  ✕
+                <button
+                  onClick={() => deleteCategory(category)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-danger transition hover:bg-danger-soft"
+                  aria-label="Borrar"
+                >
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
@@ -128,11 +144,12 @@ function CategoriasContent() {
       <button
         onClick={recalculate}
         disabled={recalculating}
-        className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm font-medium text-neutral-700 disabled:opacity-50 dark:border-neutral-800 dark:text-neutral-300"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-sm font-medium text-foreground shadow-[var(--shadow-card)] transition disabled:opacity-50"
       >
+        <RotateCw className={`h-4 w-4 ${recalculating ? "animate-spin" : ""}`} />
         {recalculating ? "Recalculando…" : "Recalcular categorías de movimientos existentes"}
       </button>
-      <p className="mt-2 text-xs text-neutral-500">
+      <p className="mt-2 px-1 text-xs text-muted">
         Vuelve a categorizar automáticamente los movimientos que no hayas categorizado a mano.
       </p>
 

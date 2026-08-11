@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import BarChart from "@/components/BarChart";
 import CategoryDetail from "@/components/CategoryDetail";
 import DonutChart from "@/components/DonutChart";
+import { Skeleton } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney, formatMonthLabel, shiftMonth } from "@/lib/format";
 import type { AnalysisSummary } from "@/lib/types";
 
-const PALETTE = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#db2777", "#65a30d"];
+const PALETTE = ["#5b5ff2", "#0ea968", "#d98c1a", "#e64c53", "#0891b2", "#a855f7", "#db2777", "#65a30d"];
 
 function AnalisisContent() {
   const now = new Date();
@@ -33,56 +35,70 @@ function AnalisisContent() {
   }
 
   return (
-    <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
-      <h1 className="mb-4 text-xl font-semibold">Análisis</h1>
+    <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
+      <h1 className="mb-4 text-2xl font-semibold tracking-tight">Análisis</h1>
 
-      <div className="mb-6 flex items-center justify-between">
-        <button onClick={() => goToMonth(-1)} className="px-2 py-1 text-lg text-neutral-500" aria-label="Mes anterior">
-          ‹
+      <div className="mb-6 flex items-center justify-between rounded-2xl border border-surface-border bg-surface px-2 py-1.5 shadow-[var(--shadow-card)]">
+        <button
+          onClick={() => goToMonth(-1)}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+          aria-label="Mes anterior"
+        >
+          <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="text-sm font-medium capitalize">{formatMonthLabel(monthKey)}</span>
-        <button onClick={() => goToMonth(1)} className="px-2 py-1 text-lg text-neutral-500" aria-label="Mes siguiente">
-          ›
+        <span className="text-sm font-semibold">{formatMonthLabel(monthKey)}</span>
+        <button
+          onClick={() => goToMonth(1)}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+          aria-label="Mes siguiente"
+        >
+          <ChevronRight className="h-4 w-4" />
         </button>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {!summary && !error && <p className="text-sm text-neutral-500">Cargando…</p>}
+      {error && <p className="mb-4 text-sm text-danger">{error}</p>}
+      {!summary && !error && (
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      )}
 
       {summary && (
         <>
-          <div className="mb-6 grid grid-cols-3 gap-2 text-center">
-            <div>
-              <p className="text-xs text-neutral-500">Ingresos</p>
-              <p className="text-sm font-semibold text-emerald-600">{formatMoney(summary.income, "EUR")}</p>
+          <div className="mb-6 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-surface-border bg-surface p-3 text-center shadow-[var(--shadow-card)]">
+              <p className="mb-0.5 text-[11px] font-medium text-muted">Ingresos</p>
+              <p className="tabular-nums text-sm font-semibold text-success">{formatMoney(summary.income, "EUR")}</p>
             </div>
-            <div>
-              <p className="text-xs text-neutral-500">Gastos</p>
-              <p className="text-sm font-semibold">{formatMoney(summary.expense, "EUR")}</p>
+            <div className="rounded-2xl border border-surface-border bg-surface p-3 text-center shadow-[var(--shadow-card)]">
+              <p className="mb-0.5 text-[11px] font-medium text-muted">Gastos</p>
+              <p className="tabular-nums text-sm font-semibold">{formatMoney(summary.expense, "EUR")}</p>
             </div>
-            <div>
-              <p className="text-xs text-neutral-500">Neto</p>
-              <p className={`text-sm font-semibold ${summary.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+            <div className="rounded-2xl border border-surface-border bg-surface p-3 text-center shadow-[var(--shadow-card)]">
+              <p className="mb-0.5 text-[11px] font-medium text-muted">Neto</p>
+              <p className={`tabular-nums text-sm font-semibold ${summary.net >= 0 ? "text-success" : "text-danger"}`}>
                 {formatMoney(summary.net, "EUR")}
               </p>
             </div>
           </div>
 
           {summary.no_computable > 0 && (
-            <p className="mb-6 text-center text-xs text-neutral-500">
+            <p className="mb-6 text-center text-xs text-muted">
               + {formatMoney(summary.no_computable, "EUR")} en traspasos entre tus cuentas (no computable)
             </p>
           )}
 
           {summary.budget_used_ratio != null && (
-            <div className="mb-8">
-              <p className="mb-1 text-xs text-neutral-500">
+            <div className="mb-8 rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
+              <p className="mb-2 text-xs font-medium text-muted">
                 {Math.round(summary.budget_used_ratio * 100)}% del presupuesto previsto
               </p>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-hover">
                 <div
-                  className={`h-full rounded-full ${
-                    summary.budget_used_ratio > 1 ? "bg-red-500" : "bg-neutral-900 dark:bg-white"
+                  className={`h-full rounded-full transition-all ${
+                    summary.budget_used_ratio > 1 ? "bg-danger" : "bg-brand"
                   }`}
                   style={{ width: `${Math.min(summary.budget_used_ratio, 1) * 100}%` }}
                 />
@@ -90,15 +106,15 @@ function AnalisisContent() {
             </div>
           )}
 
-          <section className="mb-8">
-            <h2 className="mb-3 text-sm font-medium text-neutral-500">Últimos 6 meses</h2>
+          <section className="mb-6 rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
+            <h2 className="mb-4 text-sm font-semibold text-muted">Últimos 6 meses</h2>
             <BarChart data={summary.last_six_months} />
           </section>
 
-          <section>
-            <h2 className="mb-3 text-sm font-medium text-neutral-500">Gastos por categoría</h2>
+          <section className="rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
+            <h2 className="mb-4 text-sm font-semibold text-muted">Gastos por categoría</h2>
             {summary.category_breakdown.length === 0 ? (
-              <p className="text-sm text-neutral-500">Sin gastos categorizados este mes.</p>
+              <p className="text-sm text-muted">Sin gastos categorizados este mes.</p>
             ) : (
               <DonutChart
                 segments={summary.category_breakdown.map((item, index) => ({

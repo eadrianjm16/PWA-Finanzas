@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
+import { Ban, ChevronLeft, HandCoins, Plus, Trash2, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import { Skeleton } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { DebtorDetail } from "@/lib/types";
@@ -115,47 +117,56 @@ function DeudorDetailContent() {
 
   if (!debtor) {
     return (
-      <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
-        <Link href="/deudores" className="text-sm text-neutral-500">
-          ‹ Deudores
+      <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
+        <Link href="/deudores" className="flex items-center gap-1 text-sm font-medium text-muted">
+          <ChevronLeft className="h-4 w-4" />
+          Deudores
         </Link>
-        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : <p className="mt-4 text-sm text-neutral-500">Cargando…</p>}
+        {error ? (
+          <p className="mt-4 text-sm text-danger">{error}</p>
+        ) : (
+          <div className="mt-4 flex flex-col gap-4">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        )}
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
-      <Link href="/deudores" className="text-sm text-neutral-500">
-        ‹ Deudores
+    <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
+      <Link href="/deudores" className="flex items-center gap-1 text-sm font-medium text-muted">
+        <ChevronLeft className="h-4 w-4" />
+        Deudores
       </Link>
 
-      <div className="mb-6 mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{debtor.name}</h1>
-        <button onClick={deleteDebtor} className="text-sm text-red-600">
+      <div className="mb-6 mt-3 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">{debtor.name}</h1>
+        <button onClick={deleteDebtor} className="flex items-center gap-1 text-sm font-medium text-danger">
+          <Trash2 className="h-3.5 w-3.5" />
           Borrar
         </button>
       </div>
 
-      <div className="mb-6 flex items-center justify-between rounded-xl border border-neutral-200 px-4 py-3 dark:border-neutral-800">
-        <span className="text-sm font-medium">{debtor.balance > 0 ? "Te debe" : debtor.balance < 0 ? "Le debes" : "Al día"}</span>
-        <span
-          className={`text-lg font-semibold ${
-            debtor.balance > 0 ? "text-red-600" : debtor.balance < 0 ? "text-amber-600" : "text-neutral-500"
-          }`}
-        >
+      <div className="mb-6 rounded-2xl bg-gradient-to-br from-brand to-brand-dark p-5 text-brand-contrast shadow-[var(--shadow-pop)]">
+        <p className="mb-1 text-sm font-medium text-white/70">
+          {debtor.balance > 0 ? "Te debe" : debtor.balance < 0 ? "Le debes" : "Al día"}
+        </p>
+        <p className="tabular-nums text-3xl font-semibold tracking-tight">
           {formatMoney(Math.abs(debtor.balance), "EUR")}
-        </span>
+        </p>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
       <div className="mb-6 flex flex-col gap-2">
         <button
           onClick={() => setPanel(panel === "payment" ? "none" : "payment")}
           disabled={debtor.balance === 0}
-          className="rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm font-medium disabled:opacity-40 dark:border-neutral-800"
+          className="flex items-center gap-3 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-left text-sm font-medium shadow-[var(--shadow-card)] disabled:opacity-40"
         >
+          <HandCoins className="h-4 w-4 text-brand" />
           {isOwedToMe ? "Registrar pago recibido" : "Registrar pago realizado"}
         </button>
         {panel === "payment" && (
@@ -167,12 +178,12 @@ function DeudorDetailContent() {
               value={amountText}
               onChange={(e) => setAmountText(e.target.value)}
               placeholder="Importe"
-              className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
+              className="flex-1 rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
             />
             <button
               onClick={registerPayment}
               disabled={saving}
-              className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+              className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
             >
               Registrar
             </button>
@@ -181,22 +192,23 @@ function DeudorDetailContent() {
 
         <button
           onClick={() => setPanel(panel === "manual" ? "none" : "manual")}
-          className="rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm font-medium dark:border-neutral-800"
+          className="flex items-center gap-3 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-left text-sm font-medium shadow-[var(--shadow-card)]"
         >
+          <Plus className="h-4 w-4 text-brand" />
           Añadir deuda manual
         </button>
         {panel === "manual" && (
           <div className="flex flex-col gap-2 px-1">
-            <div className="flex overflow-hidden rounded-lg border border-neutral-300 text-sm dark:border-neutral-700">
+            <div className="flex overflow-hidden rounded-xl border border-surface-border text-sm">
               <button
                 onClick={() => setKind("owedToMe")}
-                className={`flex-1 py-2 ${kind === "owedToMe" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : ""}`}
+                className={`flex-1 py-2 transition ${kind === "owedToMe" ? "bg-brand text-brand-contrast" : "bg-surface"}`}
               >
                 Deuda a cobrar
               </button>
               <button
                 onClick={() => setKind("iOwe")}
-                className={`flex-1 py-2 ${kind === "iOwe" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : ""}`}
+                className={`flex-1 py-2 transition ${kind === "iOwe" ? "bg-brand text-brand-contrast" : "bg-surface"}`}
               >
                 Deuda a pagar
               </button>
@@ -207,18 +219,18 @@ function DeudorDetailContent() {
               value={amountText}
               onChange={(e) => setAmountText(e.target.value)}
               placeholder="Importe"
-              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
+              className="rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
             />
             <input
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder="Nota (opcional)"
-              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
+              className="rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
             />
             <button
               onClick={addManualDebt}
               disabled={saving}
-              className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+              className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
             >
               Añadir
             </button>
@@ -228,28 +240,36 @@ function DeudorDetailContent() {
         <button
           onClick={cancelDebt}
           disabled={debtor.balance === 0}
-          className="rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-600 disabled:opacity-40 dark:border-red-900"
+          className="flex items-center gap-3 rounded-2xl border border-danger/20 bg-danger-soft px-4 py-3.5 text-left text-sm font-medium text-danger disabled:opacity-40"
         >
+          <Ban className="h-4 w-4" />
           Marcar deuda como cancelada
         </button>
       </div>
 
-      <h2 className="mb-2 text-sm font-medium text-neutral-500">Historial</h2>
-      {debtor.entries.length === 0 && <p className="text-sm text-neutral-500">Sin movimientos todavía</p>}
-      <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-        {debtor.entries.map((entry) => (
-          <li key={entry.id} className="flex items-center justify-between px-4 py-3">
+      <h2 className="mb-2 px-1 text-sm font-semibold text-muted">Historial</h2>
+      {debtor.entries.length === 0 && <p className="px-1 text-sm text-muted">Sin movimientos todavía</p>}
+      <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+        {debtor.entries.map((entry, index) => (
+          <li
+            key={entry.id}
+            className={`flex items-center justify-between px-4 py-3.5 ${index > 0 ? "border-t border-surface-border" : ""}`}
+          >
             <div className="min-w-0 pr-3">
-              <p className="truncate text-sm">{entry.note ?? "Movimiento"}</p>
-              <p className="text-xs text-neutral-500">{new Date(entry.date).toLocaleDateString("es-ES")}</p>
+              <p className="truncate text-sm font-medium">{entry.note ?? "Movimiento"}</p>
+              <p className="text-xs text-muted">{new Date(entry.date).toLocaleDateString("es-ES")}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-3">
-              <span className={`text-sm font-medium ${entry.amount >= 0 ? "text-neutral-900 dark:text-neutral-100" : "text-amber-600"}`}>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className={`tabular-nums text-sm font-semibold ${entry.amount >= 0 ? "text-foreground" : "text-warning"}`}>
                 {entry.amount >= 0 ? "+" : "-"}
                 {formatMoney(Math.abs(entry.amount), "EUR")}
               </span>
-              <button onClick={() => deleteEntry(entry.id)} className="text-xs text-neutral-400" aria-label="Borrar movimiento">
-                ✕
+              <button
+                onClick={() => deleteEntry(entry.id)}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-soft transition hover:bg-surface-hover"
+                aria-label="Borrar movimiento"
+              >
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           </li>
