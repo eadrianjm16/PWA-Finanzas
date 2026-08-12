@@ -238,6 +238,23 @@ class VapidPublicKeyOut(BaseModel):
     enabled: bool
 
 
+class RecurringChargeOut(BaseModel):
+    id: str
+    name: str
+    amount: float
+    currency: str
+    frequency: str  # "mensual" | "anual"
+    occurrences: int
+    last_charge_date: datetime
+    next_expected_date: datetime
+    category_name: str | None
+
+
+class NetWorthPointOut(BaseModel):
+    date: str  # "YYYY-MM-DD"
+    total_amount: float
+
+
 class MonthTotals(BaseModel):
     month: str  # "YYYY-MM"
     income: float

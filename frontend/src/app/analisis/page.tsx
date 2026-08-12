@@ -7,10 +7,11 @@ import AuthGuard from "@/components/AuthGuard";
 import BarChart from "@/components/BarChart";
 import CategoryDetail from "@/components/CategoryDetail";
 import DonutChart from "@/components/DonutChart";
+import LineChart from "@/components/LineChart";
 import { Skeleton } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney, formatMonthLabel, shiftMonth } from "@/lib/format";
-import type { AnalysisSummary } from "@/lib/types";
+import type { AnalysisSummary, NetWorthPoint } from "@/lib/types";
 
 const PALETTE = ["#5b5ff2", "#0ea968", "#d98c1a", "#e64c53", "#0891b2", "#a855f7", "#db2777", "#65a30d"];
 
@@ -25,6 +26,7 @@ function AnalisisContent() {
     apiFetch
   );
   const error = fetchError ? (fetchError instanceof ApiError ? fetchError.message : "No se pudo cargar el análisis") : null;
+  const { data: netWorthHistory } = useSWR<NetWorthPoint[]>("/api/net-worth/history", apiFetch);
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
@@ -110,6 +112,18 @@ function AnalisisContent() {
             <h2 className="mb-4 text-sm font-semibold text-muted">Últimos 6 meses</h2>
             <BarChart data={summary.last_six_months} />
           </section>
+
+          {netWorthHistory && netWorthHistory.length > 0 && (
+            <section className="mb-6 rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-muted">Patrimonio neto</h2>
+                <p className="tabular-nums text-sm font-semibold">
+                  {formatMoney(netWorthHistory[netWorthHistory.length - 1].total_amount, "EUR")}
+                </p>
+              </div>
+              <LineChart points={netWorthHistory.map((p) => ({ date: p.date, value: p.total_amount }))} />
+            </section>
+          )}
 
           <section className="rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
             <h2 className="mb-4 text-sm font-semibold text-muted">Gastos por categoría</h2>

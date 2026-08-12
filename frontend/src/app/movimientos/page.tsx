@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { ArrowDownLeft, RefreshCw, Split } from "lucide-react";
+import { ArrowDownLeft, RefreshCw, Search, Split, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { SkeletonList } from "@/components/Skeleton";
 import TransactionDetail from "@/components/TransactionDetail";
@@ -12,7 +12,16 @@ import { dayKey, formatDay, formatMoney } from "@/lib/format";
 import type { SyncResult, Transaction } from "@/lib/types";
 
 function MovimientosContent() {
-  const { data: transactions, mutate } = useSWR<Transaction[]>("/api/transactions?limit=200", apiFetch);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const query = search ? `/api/transactions?limit=200&search=${encodeURIComponent(search)}` : "/api/transactions?limit=200";
+  const { data: transactions, mutate } = useSWR<Transaction[]>(query, apiFetch);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [selected, setSelected] = useState<Transaction | null>(null);
@@ -59,10 +68,34 @@ function MovimientosContent() {
         </button>
       </div>
 
+      <div className="relative mb-4">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft" />
+        <input
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Buscar movimiento…"
+          className="w-full rounded-xl border border-surface-border bg-surface py-2.5 pl-10 pr-9 text-sm outline-none transition-colors focus:border-brand focus:ring-4 focus:ring-brand-soft"
+        />
+        {searchInput && (
+          <button
+            onClick={() => setSearchInput("")}
+            aria-label="Borrar búsqueda"
+            className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-soft hover:bg-surface-hover"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
       {!transactions && <SkeletonList rows={6} />}
-      {transactions?.length === 0 && (
+      {transactions?.length === 0 && search && (
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-surface-border px-6 py-10 text-center">
+          <p className="text-sm text-muted">Sin resultados para &quot;{search}&quot;.</p>
+        </div>
+      )}
+      {transactions?.length === 0 && !search && (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-surface-border px-6 py-10 text-center">
           <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft">
             <ArrowDownLeft className="h-6 w-6 text-brand" />

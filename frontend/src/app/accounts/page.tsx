@@ -8,6 +8,7 @@ import AuthGuard from "@/components/AuthGuard";
 import BankPicker from "@/components/BankPicker";
 import { Skeleton, SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
+import UpcomingCharges from "@/components/UpcomingCharges";
 import { formatMoney } from "@/lib/format";
 import type { BankConnection } from "@/lib/types";
 
@@ -100,6 +101,8 @@ function AccountsContent() {
         <p className="mb-1 text-sm font-medium text-white/70">Saldo total</p>
         <p className="tabular-nums text-4xl font-semibold tracking-tight">{formatMoney(total, "EUR")}</p>
       </div>
+
+      <UpcomingCharges />
 
       {!connections && <SkeletonList rows={3} />}
 

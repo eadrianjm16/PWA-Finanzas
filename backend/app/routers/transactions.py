@@ -31,6 +31,7 @@ def list_transactions(
     category_id: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    search: str | None = None,
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db_session),
@@ -56,6 +57,12 @@ def list_transactions(
         query = query.filter(models.Transaction.booking_date >= date_from)
     if date_to:
         query = query.filter(models.Transaction.booking_date <= date_to)
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.filter(
+            (models.Transaction.remittance_information.ilike(pattern))
+            | (models.Transaction.counterparty_name.ilike(pattern))
+        )
     return (
         query.order_by(models.Transaction.booking_date.desc())
         .limit(min(limit, 500))

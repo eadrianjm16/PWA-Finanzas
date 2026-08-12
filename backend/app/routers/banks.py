@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..config import settings
 from ..deps import CurrentUser, get_current_user, get_db_session
+from ..net_worth import snapshot_net_worth
 from ..security import create_oauth_state, decode_oauth_state
 from ..services.enable_banking import EnableBankingClient, EnableBankingError
 from ..services.sync import link_accounts
@@ -84,12 +85,14 @@ async def authorization_callback(
 def list_connections(
     db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
 ) -> list[models.BankConnection]:
-    return (
+    connections = (
         db.query(models.BankConnection)
         .filter_by(user_id=user.id)
         .order_by(models.BankConnection.linked_at)
         .all()
     )
+    snapshot_net_worth(db, user.id)
+    return connections
 
 
 @router.delete("/connections/{connection_id}", status_code=status.HTTP_204_NO_CONTENT)

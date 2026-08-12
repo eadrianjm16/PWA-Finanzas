@@ -24,6 +24,11 @@ export function formatShortMonth(monthKey: string): string {
   return new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(year, month - 1, 1)).replace(".", "");
 }
 
+export function formatShortDate(isoDate: string): string {
+  const label = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short" }).format(new Date(isoDate));
+  return label.replace(".", "");
+}
+
 export function shiftMonth(monthKey: string, delta: number): { year: number; month: number } {
   const [year, month] = monthKey.split("-").map(Number);
   const date = new Date(year, month - 1 + delta, 1);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { Bell, ChevronRight, LogOut, ShieldCheck, Tags, Users } from "lucide-react";
+import { Bell, ChevronRight, Lock, LogOut, Repeat, ShieldCheck, Tags, Users } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -10,8 +10,10 @@ import type { Me } from "@/lib/types";
 
 const LINKS = [
   { href: "/alertas", label: "Alertas", icon: Bell },
+  { href: "/suscripciones", label: "Suscripciones", icon: Repeat },
   { href: "/deudores", label: "Deudores", icon: Users },
   { href: "/categorias", label: "Categorías", icon: Tags },
+  { href: "/bloqueo", label: "Bloqueo con PIN", icon: Lock },
 ];
 
 function MasContent() {

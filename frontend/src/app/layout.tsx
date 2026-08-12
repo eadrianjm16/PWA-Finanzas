@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
+import AppLock from "@/components/AppLock";
 import BottomNav from "@/components/BottomNav";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import SWRProvider from "@/components/SWRProvider";
@@ -36,8 +37,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <SWRProvider>
           <AuthProvider>
-            {children}
-            <BottomNav />
+            <AppLock>
+              {children}
+              <BottomNav />
+            </AppLock>
           </AuthProvider>
         </SWRProvider>
         <ServiceWorkerRegister />

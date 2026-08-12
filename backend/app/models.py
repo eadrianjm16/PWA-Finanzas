@@ -144,6 +144,19 @@ class NotifiedAlert(Base):
     notified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class NetWorthSnapshot(Base):
+    """Una foto del saldo total del usuario en un dia concreto. Sin cron en el
+    plan gratuito de Render, se toma (upsert) cada vez que el usuario abre la
+    pantalla Saldo (ver GET /api/banks/connections) en vez de en un job
+    periodico - basta para ver una tendencia con uso normal de la app."""
+
+    __tablename__ = "net_worth_snapshots"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    date: Mapped[str] = mapped_column(String, primary_key=True)  # "YYYY-MM-DD"
+    total_amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+
+
 class Budget(Base):
     """Limite mensual por categoria. A diferencia del modelo iOS (que unia por
     categoryName), aqui se referencia la categoria por FK: mismo dato, join

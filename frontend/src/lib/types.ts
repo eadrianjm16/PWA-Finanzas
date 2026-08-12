@@ -123,6 +123,23 @@ export interface Me {
   created_at: string;
 }
 
+export interface RecurringCharge {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  frequency: "mensual" | "anual";
+  occurrences: number;
+  last_charge_date: string;
+  next_expected_date: string;
+  category_name: string | null;
+}
+
+export interface NetWorthPoint {
+  date: string;
+  total_amount: number;
+}
+
 export interface AdminUser {
   id: string;
   email: string;
