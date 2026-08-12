@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
-import { ChevronRight, Plus, Trash2, Users } from "lucide-react";
+import { ChevronRight, Contact, Plus, Trash2, Users } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { Debtor } from "@/lib/types";
+import { isContactPickerSupported, pickPhoneContact } from "@/lib/whatsapp";
 
 function balanceLabel(balance: number): string {
   if (balance > 0) return "Te debe";
@@ -37,6 +38,7 @@ function DeudoresContent() {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function addDebtor() {
@@ -45,8 +47,12 @@ function DeudoresContent() {
     setSaving(true);
     setError(null);
     try {
-      await apiFetch("/api/debtors", { method: "POST", body: JSON.stringify({ name: trimmed }) });
+      await apiFetch("/api/debtors", {
+        method: "POST",
+        body: JSON.stringify({ name: trimmed, phone: newPhone.trim() || null }),
+      });
       setNewName("");
+      setNewPhone("");
       setAdding(false);
       await mutate();
     } catch (err) {
@@ -54,6 +60,13 @@ function DeudoresContent() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function pickFromContacts() {
+    const picked = await pickPhoneContact();
+    if (!picked) return;
+    if (picked.name) setNewName(picked.name);
+    if (picked.phone) setNewPhone(picked.phone);
   }
 
   async function deleteDebtor(debtor: Debtor, event: React.MouseEvent) {
@@ -82,17 +95,35 @@ function DeudoresContent() {
       </div>
 
       {adding && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-surface-border bg-surface p-2 shadow-[var(--shadow-card)]">
+        <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-surface-border bg-surface p-3 shadow-[var(--shadow-card)]">
+          {isContactPickerSupported() && (
+            <button
+              onClick={pickFromContacts}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm font-medium text-brand"
+            >
+              <Contact className="h-4 w-4" />
+              Elegir de contactos
+            </button>
+          )}
           <input
             autoFocus
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Nombre"
-            className="flex-1 rounded-xl border-none bg-transparent px-3 py-2 text-sm outline-none"
+            className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
           />
+          <input
+            value={newPhone}
+            onChange={(e) => setNewPhone(e.target.value)}
+            placeholder="Teléfono (opcional, ej. +34 612 345 678)"
+            className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+          />
+          <p className="px-1 text-xs text-muted">
+            Con el teléfono puedes avisarle por WhatsApp al dividir un movimiento — incluye el prefijo del país.
+          </p>
           <button
             onClick={addDebtor}
-            disabled={saving}
+            disabled={saving || !newName.trim()}
             className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
           >
             Añadir

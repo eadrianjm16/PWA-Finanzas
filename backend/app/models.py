@@ -270,6 +270,7 @@ class Debtor(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     entries: Mapped[list["DebtEntry"]] = relationship(back_populates="debtor", cascade="all, delete-orphan")

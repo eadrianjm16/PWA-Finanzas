@@ -192,6 +192,7 @@ class DebtorOut(BaseModel):
 
     id: str
     name: str
+    phone: str | None
     created_at: datetime
     balance: float
 
@@ -199,6 +200,7 @@ class DebtorOut(BaseModel):
 class DebtorDetailOut(BaseModel):
     id: str
     name: str
+    phone: str | None
     created_at: datetime
     balance: float
     entries: list[DebtEntryOut]
@@ -206,6 +208,12 @@ class DebtorDetailOut(BaseModel):
 
 class DebtorCreateRequest(BaseModel):
     name: str
+    phone: str | None = None
+
+
+class DebtorUpdateRequest(BaseModel):
+    name: str | None = None
+    phone: str | None = None
 
 
 class DebtEntryCreateRequest(BaseModel):

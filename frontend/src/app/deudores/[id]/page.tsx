@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
-import { Ban, ChevronLeft, HandCoins, Plus, Trash2, X } from "lucide-react";
+import { Ban, ChevronLeft, Contact, HandCoins, Pencil, Phone, Plus, Trash2, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { Skeleton } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { DebtorDetail } from "@/lib/types";
+import { isContactPickerSupported, pickPhoneContact } from "@/lib/whatsapp";
 
 type EntryKind = "owedToMe" | "iOwe";
 
@@ -25,6 +26,8 @@ function DeudorDetailContent() {
   const [noteText, setNoteText] = useState("");
   const [kind, setKind] = useState<EntryKind>("owedToMe");
   const [saving, setSaving] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState("");
 
   async function reloadAfterMutation() {
     await mutate();
@@ -95,6 +98,28 @@ function DeudorDetailContent() {
     }
   }
 
+  async function savePhone() {
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch(`/api/debtors/${debtorId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ phone: phoneDraft.trim() || null }),
+      });
+      setEditingPhone(false);
+      await reloadAfterMutation();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar el teléfono");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function pickFromContacts() {
+    const picked = await pickPhoneContact();
+    if (picked?.phone) setPhoneDraft(picked.phone);
+  }
+
   async function deleteDebtor() {
     if (!window.confirm(`¿Borrar a ${debtor?.name}? Se perderá todo su historial.`)) return;
     try {
@@ -156,6 +181,58 @@ function DeudorDetailContent() {
         <p className="tabular-nums text-3xl font-semibold tracking-tight">
           {formatMoney(Math.abs(debtor.balance), "EUR")}
         </p>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-surface-border bg-surface p-3.5 shadow-[var(--shadow-card)]">
+        {editingPhone ? (
+          <div className="flex flex-col gap-2">
+            {isContactPickerSupported() && (
+              <button
+                onClick={pickFromContacts}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm font-medium text-brand"
+              >
+                <Contact className="h-4 w-4" />
+                Elegir de contactos
+              </button>
+            )}
+            <input
+              autoFocus
+              value={phoneDraft}
+              onChange={(e) => setPhoneDraft(e.target.value)}
+              placeholder="+34 612 345 678"
+              className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={savePhone}
+                disabled={saving}
+                className="flex-1 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
+              >
+                Guardar
+              </button>
+              <button
+                onClick={() => setEditingPhone(false)}
+                className="rounded-xl border border-surface-border px-3 py-2 text-sm font-medium"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              setPhoneDraft(debtor.phone ?? "");
+              setEditingPhone(true);
+            }}
+            className="flex w-full items-center justify-between text-sm"
+          >
+            <span className="flex items-center gap-2 text-muted">
+              <Phone className="h-4 w-4" />
+              {debtor.phone ?? "Sin teléfono"}
+            </span>
+            <Pencil className="h-3.5 w-3.5 text-muted-soft" />
+          </button>
+        )}
       </div>
 
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}

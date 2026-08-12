@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, CheckCircle2, ChevronLeft, Circle, Split, Tag, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, Circle, MessageCircle, Split, Tag, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { CategoryIcon } from "@/lib/icons";
+import { buildWhatsAppLink } from "@/lib/whatsapp";
 import type { Category, Debtor, Transaction } from "@/lib/types";
 
 type SplitMode = "equal" | "fixed";
-type Mode = "view" | "recategorize" | "split";
+type Mode = "view" | "recategorize" | "split" | "notify";
+
+interface NotifyEntry {
+  debtor: Debtor;
+  amount: number;
+}
 
 export default function TransactionDetail({
   transaction,
@@ -32,6 +38,7 @@ export default function TransactionDetail({
   const [weights, setWeights] = useState<Record<string, string>>({});
   const [myWeight, setMyWeight] = useState("1");
   const [newDebtorName, setNewDebtorName] = useState("");
+  const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([]);
 
   useEffect(() => {
     apiFetch<Category[]>("/api/categories")
@@ -108,20 +115,47 @@ export default function TransactionDetail({
     selected.size > 0 &&
     (splitMode === "equal" ? totalWeight > 0 : fixedAssigned > 0 && fixedAssigned <= total + 0.01);
 
-  async function saveSplit() {
+  function shareAmountFor(debtorId: string): number {
+    return splitMode === "equal" ? shareFor(debtorId) : Number(fixedAmounts[debtorId]?.replace(",", ".")) || 0;
+  }
+
+  function whatsAppMessageFor(amount: number): string {
+    const title = transaction.counterparty_name || transaction.remittance_information || "un movimiento";
+    const dateStr = new Date(transaction.booking_date).toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    const peopleCount = selected.size + (includeMe ? 1 : 0);
+    return (
+      `Mensaje automático — reparto de "${title}" (${dateStr}). ` +
+      `Tu parte: ${formatMoney(amount, "EUR")}. Total: ${formatMoney(total, "EUR")} entre ${peopleCount} personas.`
+    );
+  }
+
+  async function saveSplit(notify: boolean) {
     setSaving(true);
     setError(null);
     try {
       const entries = [...selected].map((debtorId) => ({
         debtor_id: debtorId,
-        amount: splitMode === "equal" ? shareFor(debtorId) : Number(fixedAmounts[debtorId]?.replace(",", ".")) || 0,
+        amount: shareAmountFor(debtorId),
       }));
       await apiFetch(`/api/transactions/${transaction.entry_reference}/split`, {
         method: "POST",
         body: JSON.stringify({ entries }),
       });
       onUpdated();
-      onClose();
+      if (notify) {
+        const entriesToNotify: NotifyEntry[] = [...selected]
+          .map((id) => debtors?.find((d) => d.id === id))
+          .filter((d): d is Debtor => Boolean(d))
+          .map((debtor) => ({ debtor, amount: shareAmountFor(debtor.id) }));
+        setNotifyEntries(entriesToNotify);
+        setMode("notify");
+      } else {
+        onClose();
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo dividir el movimiento");
     } finally {
@@ -133,13 +167,23 @@ export default function TransactionDetail({
     <div className="fixed inset-0 z-30 flex flex-col bg-background">
       <div className="flex items-center justify-between border-b border-surface-border bg-surface px-4 py-3">
         <button
-          onClick={mode === "view" ? onClose : () => setMode("view")}
+          onClick={mode === "view" || mode === "notify" ? onClose : () => setMode("view")}
           className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
         >
-          {mode === "view" ? <X className="h-[18px] w-[18px]" /> : <ChevronLeft className="h-[18px] w-[18px]" />}
+          {mode === "view" || mode === "notify" ? (
+            <X className="h-[18px] w-[18px]" />
+          ) : (
+            <ChevronLeft className="h-[18px] w-[18px]" />
+          )}
         </button>
         <h2 className="text-sm font-semibold">
-          {mode === "recategorize" ? "Recategorizar" : mode === "split" ? "Dividir" : "Movimiento"}
+          {mode === "recategorize"
+            ? "Recategorizar"
+            : mode === "split"
+              ? "Dividir"
+              : mode === "notify"
+                ? "Notificar"
+                : "Movimiento"}
         </h2>
         <div className="w-9" />
       </div>
@@ -324,12 +368,62 @@ export default function TransactionDetail({
 
             {error && <p className="text-sm text-danger">{error}</p>}
 
+            <div className="flex gap-2">
+              <button
+                onClick={() => saveSplit(false)}
+                disabled={!canSaveSplit || saving}
+                className="flex-1 rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-contrast disabled:opacity-50"
+              >
+                Guardar
+              </button>
+              <button
+                onClick={() => saveSplit(true)}
+                disabled={!canSaveSplit || saving}
+                className="flex-1 rounded-xl border-2 border-brand px-4 py-3 text-sm font-medium text-brand disabled:opacity-50"
+              >
+                Guardar y notificar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === "notify" && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted">
+              Reparto guardado. Abre WhatsApp con el mensaje ya escrito para cada persona — tú decides cuándo
+              pulsar enviar.
+            </p>
+            <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+              {notifyEntries.map(({ debtor, amount }, index) => (
+                <li
+                  key={debtor.id}
+                  className={`flex items-center gap-3 px-4 py-3 ${index > 0 ? "border-t border-surface-border" : ""}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{debtor.name}</p>
+                    <p className="text-xs text-muted">{formatMoney(amount, "EUR")}</p>
+                  </div>
+                  {debtor.phone ? (
+                    <a
+                      href={buildWhatsAppLink(debtor.phone, whatsAppMessageFor(amount))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-2 text-xs font-medium text-white"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      WhatsApp
+                    </a>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-soft">Sin teléfono</span>
+                  )}
+                </li>
+              ))}
+            </ul>
             <button
-              onClick={saveSplit}
-              disabled={!canSaveSplit || saving}
-              className="rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-contrast disabled:opacity-50"
+              onClick={onClose}
+              className="rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-contrast"
             >
-              Guardar
+              Listo
             </button>
           </div>
         )}

@@ -12,7 +12,9 @@ def _balance(debtor: models.Debtor) -> float:
 
 
 def _to_out(debtor: models.Debtor) -> schemas.DebtorOut:
-    return schemas.DebtorOut(id=debtor.id, name=debtor.name, created_at=debtor.created_at, balance=_balance(debtor))
+    return schemas.DebtorOut(
+        id=debtor.id, name=debtor.name, phone=debtor.phone, created_at=debtor.created_at, balance=_balance(debtor)
+    )
 
 
 def _get_debtor_or_404(db: Session, user: CurrentUser, debtor_id: str) -> models.Debtor:
@@ -48,8 +50,31 @@ def create_debtor(
     if db.query(models.Debtor).filter_by(user_id=user.id, name=name).first() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una persona con ese nombre")
 
-    debtor = models.Debtor(user_id=user.id, name=name)
+    debtor = models.Debtor(user_id=user.id, name=name, phone=(payload.phone or "").strip() or None)
     db.add(debtor)
+    db.commit()
+    db.refresh(debtor)
+    return _to_out(debtor)
+
+
+@router.patch("/{debtor_id}", response_model=schemas.DebtorOut)
+def update_debtor(
+    debtor_id: str,
+    payload: schemas.DebtorUpdateRequest,
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(get_current_user),
+) -> schemas.DebtorOut:
+    debtor = _get_debtor_or_404(db, user, debtor_id)
+    updates = payload.model_dump(exclude_unset=True)
+
+    if "name" in updates:
+        name = (updates["name"] or "").strip()
+        if not name:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "El nombre no puede estar vacío")
+        debtor.name = name
+    if "phone" in updates:
+        debtor.phone = (updates["phone"] or "").strip() or None
+
     db.commit()
     db.refresh(debtor)
     return _to_out(debtor)
@@ -64,6 +89,7 @@ def get_debtor(
     return schemas.DebtorDetailOut(
         id=debtor.id,
         name=debtor.name,
+        phone=debtor.phone,
         created_at=debtor.created_at,
         balance=_balance(debtor),
         entries=[schemas.DebtEntryOut.model_validate(e) for e in entries],

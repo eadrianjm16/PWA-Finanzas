@@ -113,6 +113,7 @@ export interface AnalysisSummary {
 export interface Debtor {
   id: string;
   name: string;
+  phone: string | null;
   created_at: string;
   balance: number;
 }
@@ -128,6 +129,7 @@ export interface DebtEntry {
 export interface DebtorDetail {
   id: string;
   name: string;
+  phone: string | null;
   created_at: string;
   balance: number;
   entries: DebtEntry[];
