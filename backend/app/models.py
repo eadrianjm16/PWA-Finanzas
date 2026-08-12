@@ -291,3 +291,23 @@ class DebtEntry(Base):
 
     debtor: Mapped["Debtor"] = relationship(back_populates="entries")
     transaction: Mapped["Transaction | None"] = relationship(back_populates="debt_entries")
+
+
+class Loan(Base):
+    """Seguimiento manual de un préstamo o crédito revolving externo (p. ej.
+    Cofidis, Cetelem) que no llega por sincronización bancaria: el usuario
+    actualiza estos campos a mano cada vez que recibe un extracto nuevo."""
+
+    __tablename__ = "loans"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    credit_limit: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
+    balance: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    monthly_payment: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    tin: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+    tae: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+    next_payment_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

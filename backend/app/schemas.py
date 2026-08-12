@@ -350,6 +350,40 @@ class FixedExpensesSummaryOut(BaseModel):
     estimated_leftover: float | None
 
 
+class LoanOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    credit_limit: float | None
+    balance: float
+    monthly_payment: float
+    tin: float | None
+    tae: float | None
+    next_payment_date: datetime | None
+    updated_at: datetime
+
+
+class LoanCreateRequest(BaseModel):
+    name: str
+    credit_limit: float | None = None
+    balance: float
+    monthly_payment: float
+    tin: float | None = None
+    tae: float | None = None
+    next_payment_date: datetime | None = None
+
+
+class LoanUpdateRequest(BaseModel):
+    name: str | None = None
+    credit_limit: float | None = None
+    balance: float | None = None
+    monthly_payment: float | None = None
+    tin: float | None = None
+    tae: float | None = None
+    next_payment_date: datetime | None = None
+
+
 class MonthTotals(BaseModel):
     month: str  # "YYYY-MM"
     income: float

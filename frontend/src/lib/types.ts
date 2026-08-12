@@ -173,6 +173,18 @@ export interface SavingsGoal {
   created_at: string;
 }
 
+export interface Loan {
+  id: string;
+  name: string;
+  credit_limit: number | null;
+  balance: number;
+  monthly_payment: number;
+  tin: number | null;
+  tae: number | null;
+  next_payment_date: string | null;
+  updated_at: string;
+}
+
 export interface FixedExpense {
   id: string;
   name: string;

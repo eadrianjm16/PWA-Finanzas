@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { Bell, CalendarClock, ChevronRight, Lock, LogOut, Repeat, ShieldCheck, Tags, Target, Users } from "lucide-react";
+import {
+  Bell,
+  CalendarClock,
+  ChevronRight,
+  CreditCard,
+  Lock,
+  LogOut,
+  Repeat,
+  ShieldCheck,
+  Tags,
+  Target,
+  Users,
+} from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -13,6 +25,7 @@ const LINKS = [
   { href: "/suscripciones", label: "Suscripciones", icon: Repeat },
   { href: "/gastos-fijos", label: "Gasto Fijo", icon: CalendarClock },
   { href: "/metas", label: "Metas de ahorro", icon: Target },
+  { href: "/prestamos", label: "Préstamos", icon: CreditCard },
   { href: "/deudores", label: "Deudores", icon: Users },
   { href: "/categorias", label: "Categorías", icon: Tags },
   { href: "/bloqueo", label: "Bloqueo con PIN", icon: Lock },
