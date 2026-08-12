@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import SessionLocal, engine
-from app.services.sync import learn_rule_from_categorization, sync_transactions
+from app.services.sync import learn_rule_from_categorization, link_accounts, sync_transactions
 
 
 @pytest.fixture
@@ -158,3 +158,17 @@ async def test_sync_deduplicates_within_the_same_batch(db, account):
 
     count = db.query(models.Transaction).filter_by(entry_reference="tx-batch-dup").count()
     assert count == 1
+
+
+def test_link_accounts_assigns_a_color_based_on_the_real_bank(db):
+    user = models.User(email=f"linkcolor-{uuid.uuid4()}@example.com", password_hash="x")
+    db.add(user)
+    db.commit()
+
+    session_data = {
+        "accounts": [{"uid": "acc-bbva-1", "name": "Cuenta Corriente", "account_id": {"iban": "ES1234"}}]
+    }
+    link_accounts(db, session_data, {"name": "BBVA", "country": "ES"}, user.id)
+
+    account = db.get(models.LinkedAccount, "acc-bbva-1")
+    assert account.color == "#004481"

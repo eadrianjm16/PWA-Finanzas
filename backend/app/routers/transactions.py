@@ -76,6 +76,7 @@ def list_transactions(
     # `.has_debt_entries` accedido), en vez de una sola consulta con IN.
     query = _filtered_query(db, user.id, account_uid, category_id, date_from, date_to, search).options(
         joinedload(models.Transaction.category),
+        joinedload(models.Transaction.account),
         selectinload(models.Transaction.debt_entries),
     )
     return (

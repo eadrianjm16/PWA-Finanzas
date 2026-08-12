@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,8 @@ from ..services.enable_banking import EnableBankingClient, EnableBankingError
 from ..services.sync import refresh_balance
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 def _get_account_or_404(db: Session, user: CurrentUser, account_uid: str) -> models.LinkedAccount:
@@ -42,6 +46,10 @@ def update_account(
         account.is_visible = payload.is_visible
     if payload.is_balance_visible is not None:
         account.is_balance_visible = payload.is_balance_visible
+    if payload.color is not None:
+        if not _HEX_COLOR_RE.match(payload.color):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Color inválido, usa formato #RRGGBB")
+        account.color = payload.color
     db.commit()
     db.refresh(account)
     return account

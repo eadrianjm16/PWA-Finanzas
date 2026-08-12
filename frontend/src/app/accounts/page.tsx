@@ -59,6 +59,18 @@ function AccountsContent() {
     }
   }
 
+  async function updateAccountColor(accountUid: string, color: string) {
+    try {
+      await apiFetch(`/api/accounts/${accountUid}`, {
+        method: "PATCH",
+        body: JSON.stringify({ color }),
+      });
+      await mutate();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar el color");
+    }
+  }
+
   async function deleteConnection(connection: BankConnection) {
     if (
       !window.confirm(
@@ -139,10 +151,17 @@ function AccountsContent() {
                   className={`${index > 0 ? "border-t border-surface-border" : ""} ${account.is_visible ? "" : "opacity-40"}`}
                 >
                   <div className="flex items-center justify-between px-4 py-3.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{account.display_name}</p>
-                      {account.iban && <p className="text-xs text-muted">····{account.iban.slice(-4)}</p>}
-                      {account.last_sync_issue && <p className="text-xs text-danger">{account.last_sync_issue}</p>}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: account.color }}
+                        aria-hidden
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{account.display_name}</p>
+                        {account.iban && <p className="text-xs text-muted">····{account.iban.slice(-4)}</p>}
+                        {account.last_sync_issue && <p className="text-xs text-danger">{account.last_sync_issue}</p>}
+                      </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <span className="tabular-nums text-sm font-semibold">
@@ -172,6 +191,21 @@ function AccountsContent() {
 
                   {expandedAccount === account.account_uid && (
                     <div className="flex flex-col gap-1 border-t border-surface-border px-4 py-3">
+                      <label className="flex items-center justify-between py-1.5 text-sm">
+                        <span>Color</span>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="h-5 w-5 rounded-full border border-surface-border"
+                            style={{ backgroundColor: account.color }}
+                          />
+                          <input
+                            type="color"
+                            value={account.color}
+                            onChange={(e) => updateAccountColor(account.account_uid, e.target.value)}
+                            className="h-8 w-8 cursor-pointer rounded-lg border border-surface-border bg-transparent p-0"
+                          />
+                        </span>
+                      </label>
                       <button
                         onClick={() => toggleAccountFlag(account.account_uid, "is_visible", !account.is_visible)}
                         className="flex items-center justify-between py-1.5 text-sm"

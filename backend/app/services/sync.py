@@ -13,6 +13,7 @@ from sqlalchemy import insert
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models
+from ..bank_colors import resolve_account_color
 from ..categorization import suggest_category
 from .enable_banking import EnableBankingClient, EnableBankingError, pick_available_balance
 
@@ -59,6 +60,7 @@ def link_accounts(db: Session, session_data: dict, aspsp: dict, user_id: str) ->
                     display_name=account.get("name") or aspsp_name,
                     iban=iban,
                     connection_id=connection.id,
+                    color=resolve_account_color(aspsp_name, account_uid),
                 )
             )
 

@@ -16,6 +16,7 @@ export interface LinkedAccount {
   is_visible: boolean;
   is_balance_visible: boolean;
   last_sync_issue: string | null;
+  color: string;
 }
 
 export interface BankConnection {
@@ -29,6 +30,7 @@ export interface BankConnection {
 export interface Transaction {
   entry_reference: string;
   account_uid: string;
+  account_color: string;
   category: Category | null;
   amount: number;
   currency: string;

@@ -88,6 +88,7 @@ class LinkedAccountOut(BaseModel):
     is_visible: bool
     is_balance_visible: bool
     last_sync_issue: str | None
+    color: str
 
 
 class BankConnectionOut(BaseModel):
@@ -104,6 +105,7 @@ class AccountUpdateRequest(BaseModel):
     display_name: str | None = None
     is_visible: bool | None = None
     is_balance_visible: bool | None = None
+    color: str | None = None
 
 
 class TransactionOut(BaseModel):
@@ -111,6 +113,7 @@ class TransactionOut(BaseModel):
 
     entry_reference: str
     account_uid: str
+    account_color: str
     category: CategoryOut | None
     amount: float
     currency: str

@@ -71,8 +71,15 @@ export default function CategoryDetail({
               key={tx.entry_reference}
               className={`flex items-center justify-between px-4 py-3.5 ${index > 0 ? "border-t border-surface-border" : ""}`}
             >
-              <span className="truncate pr-3 text-sm font-medium">
-                {tx.counterparty_name || tx.remittance_information || "Movimiento"}
+              <span className="flex min-w-0 items-center gap-2 pr-3">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: tx.account_color }}
+                  aria-hidden
+                />
+                <span className="truncate text-sm font-medium">
+                  {tx.counterparty_name || tx.remittance_information || "Movimiento"}
+                </span>
               </span>
               <span className="tabular-nums shrink-0 text-sm font-semibold">
                 {formatMoney(Math.abs(tx.amount), tx.currency)}

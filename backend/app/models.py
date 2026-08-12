@@ -61,6 +61,7 @@ class LinkedAccount(Base):
     is_visible: Mapped[bool] = mapped_column(Boolean, default=True)
     is_balance_visible: Mapped[bool] = mapped_column(Boolean, default=True)
     last_sync_issue: Mapped[str | None] = mapped_column(String, nullable=True)
+    color: Mapped[str] = mapped_column(String, nullable=False, default="#6366F1")
 
     connection: Mapped["BankConnection"] = relationship(back_populates="accounts")
     transactions: Mapped[list["Transaction"]] = relationship(
@@ -105,6 +106,10 @@ class Transaction(Base):
     @property
     def has_debt_entries(self) -> bool:
         return len(self.debt_entries) > 0
+
+    @property
+    def account_color(self) -> str:
+        return self.account.color
 
 
 class AlertDismissal(Base):
