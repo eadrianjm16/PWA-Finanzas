@@ -33,15 +33,21 @@ def link_accounts(db: Session, session_data: dict, aspsp: dict, user_id: str) ->
 
     aspsp_name = aspsp["name"].strip()
     aspsp_country = aspsp["country"].strip()
+    aspsp_logo = aspsp.get("logo")
     connection_key = f"{aspsp_name}|{aspsp_country}"
 
     connection = db.query(models.BankConnection).filter_by(user_id=user_id, key=connection_key).first()
     if connection is None:
         connection = models.BankConnection(
-            user_id=user_id, aspsp_name=aspsp_name, aspsp_country=aspsp_country, key=connection_key
+            user_id=user_id, aspsp_name=aspsp_name, aspsp_country=aspsp_country, key=connection_key, logo=aspsp_logo
         )
         db.add(connection)
         db.flush()
+    elif aspsp_logo:
+        # Reautorizar una conexion ya existente (p. ej. tras 90 dias de
+        # consentimiento PSD2) es gratis para rellenar el logo si la conexion
+        # se creo antes de que esta app lo guardara.
+        connection.logo = aspsp_logo
 
     for account in accounts:
         account_uid = account["uid"]

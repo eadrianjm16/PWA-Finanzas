@@ -23,6 +23,7 @@ export interface BankConnection {
   id: string;
   aspsp_name: string;
   aspsp_country: string;
+  logo: string | null;
   linked_at: string;
   accounts: LinkedAccount[];
 }

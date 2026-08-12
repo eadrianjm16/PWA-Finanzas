@@ -32,12 +32,19 @@ def decode_access_token(token: str) -> dict:
     return payload
 
 
-def create_oauth_state(user_id: str, aspsp_name: str, aspsp_country: str, expires_minutes: int = 15) -> str:
+def create_oauth_state(
+    user_id: str, aspsp_name: str, aspsp_country: str, aspsp_logo: str | None = None, expires_minutes: int = 15
+) -> str:
     """Firma el `state` que viaja ida y vuelta por el navegador durante la
     autorizacion PSD2. No necesitamos guardarlo en el servidor: el propio
     token, firmado, es la fuente de verdad al volver en /banks/callback. Lleva
     el user_id porque ese callback lo llama el banco sin Authorization header,
     asi que es la unica forma de saber a que usuario asignar la cuenta.
+
+    Tambien lleva el logo del banco (si Enable Banking lo dio en /aspsps):
+    es la unica forma de que sobreviva el viaje de ida y vuelta por el banco
+    y llegue a link_accounts() para guardarlo, sin volver a pedirselo a
+    Enable Banking.
     """
     now = int(time.time())
     payload = {
@@ -45,6 +52,7 @@ def create_oauth_state(user_id: str, aspsp_name: str, aspsp_country: str, expire
         "user_id": user_id,
         "aspsp_name": aspsp_name,
         "aspsp_country": aspsp_country,
+        "aspsp_logo": aspsp_logo,
         "iat": now,
         "exp": now + expires_minutes * 60,
     }

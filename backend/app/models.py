@@ -36,6 +36,7 @@ class BankConnection(Base):
     key: Mapped[str] = mapped_column(String, nullable=False)
     aspsp_name: Mapped[str] = mapped_column(String, nullable=False)
     aspsp_country: Mapped[str] = mapped_column(String, nullable=False)
+    logo: Mapped[str | None] = mapped_column(String, nullable=True)
     linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     accounts: Mapped[list["LinkedAccount"]] = relationship(

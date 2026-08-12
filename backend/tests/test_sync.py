@@ -197,3 +197,41 @@ def test_link_accounts_assigns_a_color_based_on_the_real_bank(db):
 
     account = db.get(models.LinkedAccount, "acc-bbva-1")
     assert account.color == "#004481"
+
+
+def test_link_accounts_stores_the_bank_logo(db):
+    user = models.User(email=f"linklogo-{uuid.uuid4()}@example.com", password_hash="x")
+    db.add(user)
+    db.commit()
+
+    session_data = {"accounts": [{"uid": "acc-logo-1", "name": "Cuenta", "account_id": {}}]}
+    connection = link_accounts(
+        db, session_data, {"name": "BBVA", "country": "ES", "logo": "https://cdn.example/bbva.png"}, user.id
+    )
+
+    assert connection.logo == "https://cdn.example/bbva.png"
+
+
+def test_link_accounts_without_a_logo_leaves_it_empty(db):
+    user = models.User(email=f"linknologo-{uuid.uuid4()}@example.com", password_hash="x")
+    db.add(user)
+    db.commit()
+
+    session_data = {"accounts": [{"uid": "acc-nologo-1", "name": "Cuenta", "account_id": {}}]}
+    connection = link_accounts(db, session_data, {"name": "Banco Sin Logo", "country": "ES"}, user.id)
+
+    assert connection.logo is None
+
+
+def test_reauthorizing_backfills_a_missing_logo(db):
+    user = models.User(email=f"backfilllogo-{uuid.uuid4()}@example.com", password_hash="x")
+    db.add(user)
+    db.commit()
+
+    session_data = {"accounts": [{"uid": "acc-backfill-1", "name": "Cuenta", "account_id": {}}]}
+    link_accounts(db, session_data, {"name": "Banco Viejo", "country": "ES"}, user.id)
+    connection = link_accounts(
+        db, session_data, {"name": "Banco Viejo", "country": "ES", "logo": "https://cdn.example/nuevo.png"}, user.id
+    )
+
+    assert connection.logo == "https://cdn.example/nuevo.png"

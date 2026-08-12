@@ -97,6 +97,7 @@ class BankConnectionOut(BaseModel):
     id: str
     aspsp_name: str
     aspsp_country: str
+    logo: str | None
     linked_at: datetime
     accounts: list[LinkedAccountOut]
 

@@ -32,7 +32,7 @@ async def start_authorization(
     user: CurrentUser = Depends(get_current_user),
 ) -> schemas.StartAuthorizationResponse:
     client: EnableBankingClient = request.app.state.eb_client
-    state = create_oauth_state(user.id, payload.aspsp.name, payload.aspsp.country)
+    state = create_oauth_state(user.id, payload.aspsp.name, payload.aspsp.country, payload.aspsp.logo)
     try:
         url = await client.start_authorization(
             aspsp=payload.aspsp.model_dump(exclude_none=True),
@@ -70,7 +70,11 @@ async def authorization_callback(
         return RedirectResponse(f"{frontend_accounts_url}?bank_error=invalid_state")
 
     user_id = state_payload["user_id"]
-    aspsp = {"name": state_payload["aspsp_name"], "country": state_payload["aspsp_country"]}
+    aspsp = {
+        "name": state_payload["aspsp_name"],
+        "country": state_payload["aspsp_country"],
+        "logo": state_payload.get("aspsp_logo"),
+    }
     client: EnableBankingClient = request.app.state.eb_client
     try:
         session_data = await client.create_session(code)

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Landmark, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
+import BankLogo from "@/components/BankLogo";
 import type { ASPSP } from "@/lib/types";
 
 export default function BankPicker({ onClose }: { onClose: () => void }) {
@@ -78,8 +79,8 @@ export default function BankPicker({ onClose }: { onClose: () => void }) {
                   disabled={connecting !== null}
                   className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm transition hover:bg-surface-hover disabled:opacity-50"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-hover">
-                    <Landmark className="h-4 w-4 text-muted" />
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-hover">
+                    <BankLogo src={aspsp.logo} alt={aspsp.name} className="h-5 w-5" />
                   </span>
                   <span className="flex-1 font-medium">{aspsp.name}</span>
                   {connecting === aspsp.name && <span className="text-xs text-brand">Conectando…</span>}

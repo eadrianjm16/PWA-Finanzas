@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { Eye, EyeOff, Landmark, MoreHorizontal, Plus, RefreshCw, Trash2, Wallet } from "lucide-react";
+import { Eye, EyeOff, MoreHorizontal, Plus, RefreshCw, Trash2, Wallet } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import BankLogo from "@/components/BankLogo";
 import BankPicker from "@/components/BankPicker";
 import { Skeleton, SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -133,7 +134,7 @@ function AccountsContent() {
           <section key={connection.id}>
             <div className="mb-2 flex items-center justify-between px-1">
               <h2 className="flex items-center gap-1.5 text-sm font-medium text-muted">
-                <Landmark className="h-3.5 w-3.5" />
+                <BankLogo src={connection.logo} alt={connection.aspsp_name} className="h-4 w-4 shrink-0" />
                 {connection.aspsp_name}
               </h2>
               <button
