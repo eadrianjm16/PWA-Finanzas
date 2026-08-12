@@ -19,7 +19,9 @@ function AnalisisContent() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<
+    { id: string; name: string; direction: "DBIT" | "CRDT" } | null
+  >(null);
 
   const { data: summary, error: fetchError } = useSWR<AnalysisSummary>(
     `/api/analysis/summary?year=${year}&month=${month}`,
@@ -142,7 +144,7 @@ function AnalisisContent() {
                 }))}
                 onSelect={(id) => {
                   const item = summary.category_breakdown.find((b) => b.category.id === id);
-                  if (item) setSelectedCategory({ id, name: item.category.name });
+                  if (item) setSelectedCategory({ id, name: item.category.name, direction: "DBIT" });
                 }}
               />
             )}
@@ -162,7 +164,7 @@ function AnalisisContent() {
                 }))}
                 onSelect={(id) => {
                   const item = (summary.income_breakdown ?? []).find((b) => b.category.id === id);
-                  if (item) setSelectedCategory({ id, name: item.category.name });
+                  if (item) setSelectedCategory({ id, name: item.category.name, direction: "CRDT" });
                 }}
               />
             )}
@@ -174,6 +176,7 @@ function AnalisisContent() {
         <CategoryDetail
           categoryId={selectedCategory.id}
           categoryName={selectedCategory.name}
+          direction={selectedCategory.direction}
           year={year}
           month={month}
           onClose={() => setSelectedCategory(null)}

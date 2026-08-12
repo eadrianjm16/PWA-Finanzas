@@ -15,12 +15,14 @@ function monthRange(year: number, month: number): { from: string; to: string } {
 export default function CategoryDetail({
   categoryId,
   categoryName,
+  direction,
   year,
   month,
   onClose,
 }: {
   categoryId: string;
   categoryName: string;
+  direction: "DBIT" | "CRDT";
   year: number;
   month: number;
   onClose: () => void;
@@ -33,9 +35,13 @@ export default function CategoryDetail({
     apiFetch<Transaction[]>(
       `/api/transactions?category_id=${categoryId}&date_from=${encodeURIComponent(from)}&date_to=${encodeURIComponent(to)}&limit=200`
     )
-      .then(setTransactions)
+      // La categoria puede tener movimientos en los dos sentidos (p. ej.
+      // Bizum enviado y recibido cayendo en "Otros"): se filtra al sentido
+      // que corresponde a la grafica desde la que se abrio (gastos o
+      // ingresos), si no se mezclarian en el detalle.
+      .then((all) => setTransactions(all.filter((tx) => tx.credit_debit_indicator === direction)))
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar los movimientos"));
-  }, [categoryId, year, month]);
+  }, [categoryId, direction, year, month]);
 
   const total = (transactions ?? []).reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
 
