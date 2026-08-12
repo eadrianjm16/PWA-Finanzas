@@ -102,6 +102,66 @@ def test_build_summary_income_breakdown_only_includes_categorized_credits(db, us
     assert "Ocio" not in by_category_name  # es un gasto, no debe colarse en el desglose de ingresos
 
 
+def test_budget_used_ratio_only_considers_budgeted_categories(db, user_id):
+    # Antes se comparaba el gasto TOTAL del mes contra la suma de los pocos
+    # presupuestos fijados, lo que inflaba el % si habia gasto sin presupuestar.
+    account = _make_account(db, user_id, "acc-ratio-scope")
+    budgeted = models.Category(user_id=user_id, name="Con presupuesto", system_icon_name="tag", sort_order=0)
+    unbudgeted = models.Category(user_id=user_id, name="Sin presupuesto", system_icon_name="tag", sort_order=1)
+    db.add_all([budgeted, unbudgeted])
+    db.flush()
+    db.add(models.Budget(category_id=budgeted.id, monthly_limit=100))
+
+    _make_tx(db, account.account_uid, "tx-ratio-budgeted", 80, "DBIT", 2027, 5, 10, category_id=budgeted.id)
+    _make_tx(db, account.account_uid, "tx-ratio-unbudgeted", 500, "DBIT", 2027, 5, 11, category_id=unbudgeted.id)
+    db.commit()
+
+    summary = build_summary(db, user_id, 2027, 5)
+
+    assert summary["expense"] == 580.0  # el total de gasto del mes sigue sumando todo
+    assert summary["budgeted_total"] == 100.0
+    assert summary["budget_used_ratio"] == pytest.approx(0.8)  # 80/100, no (80+500)/100
+
+
+def test_budget_used_ratio_ignores_rollover_for_a_past_month(db, user_id):
+    account = _make_account(db, user_id, "acc-ratio-past-rollover")
+    category = models.Category(user_id=user_id, name="Rollover pasado", system_icon_name="tag", sort_order=0)
+    db.add(category)
+    db.flush()
+    db.add(models.Budget(category_id=category.id, monthly_limit=100, rollover=True))
+    _make_tx(db, account.account_uid, "tx-ratio-past", 50, "DBIT", 2027, 6, 10, category_id=category.id)
+    db.commit()
+
+    summary = build_summary(db, user_id, 2027, 6)
+
+    # 2027-06 no es "ahora": el remanente no se recalcula para meses ya
+    # cerrados, se usa el limite tal cual.
+    assert summary["budgeted_total"] == 100.0
+    assert summary["budget_used_ratio"] == pytest.approx(0.5)
+
+
+def test_budget_used_ratio_applies_rollover_for_the_real_current_month(db, user_id):
+    now = datetime.now(timezone.utc)
+    this_year, this_month = now.year, now.month
+    prev_month = this_month - 1 or 12
+    prev_year = this_year if this_month > 1 else this_year - 1
+
+    account = _make_account(db, user_id, "acc-ratio-current-rollover")
+    category = models.Category(user_id=user_id, name="Rollover actual", system_icon_name="tag", sort_order=0)
+    db.add(category)
+    db.flush()
+    db.add(models.Budget(category_id=category.id, monthly_limit=100, rollover=True))
+    # El mes pasado (real) solo gasto 30 de 100 -> sobran 70 para este mes.
+    _make_tx(db, account.account_uid, "tx-ratio-cur-prev", 30, "DBIT", prev_year, prev_month, 5, category_id=category.id)
+    _make_tx(db, account.account_uid, "tx-ratio-cur-this", 34, "DBIT", this_year, this_month, 5, category_id=category.id)
+    db.commit()
+
+    summary = build_summary(db, user_id, this_year, this_month)
+
+    assert summary["budgeted_total"] == 170.0  # 100 + (100 - 30) de remanente
+    assert summary["budget_used_ratio"] == pytest.approx(34 / 170)
+
+
 def test_build_summary_excludes_hidden_accounts(db, user_id):
     # Mes distinto al resto de tests de este archivo: los tests comparten el
     # mismo fichero sqlite de prueba y no estan aislados entre si.

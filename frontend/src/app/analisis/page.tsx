@@ -98,7 +98,7 @@ function AnalisisContent() {
           {summary.budget_used_ratio != null && (
             <div className="mb-8 rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
               <p className="mb-2 text-xs font-medium text-muted">
-                {Math.round(summary.budget_used_ratio * 100)}% del presupuesto previsto
+                {Math.round(summary.budget_used_ratio * 100)}% gastado en categorías con presupuesto
               </p>
               <div className="h-2 w-full overflow-hidden rounded-full bg-surface-hover">
                 <div

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from . import models
+from .budget_calc import effective_limit, spent_by_category_previous_month
 from .internal_transfers import detect as detect_internal_transfers
 
 
@@ -76,9 +77,28 @@ def build_summary(db: Session, user_id: str, year: int, month: int) -> dict:
             if tx.category_id is not None:
                 spend_by_category[tx.category_id] = spend_by_category.get(tx.category_id, 0) + amount
 
+    # El % de presupuesto solo tiene sentido comparando manzanas con manzanas:
+    # el gasto SOLO de las categorias que tienen un limite puesto, contra la
+    # suma de esos limites (antes se comparaba el gasto total del mes -todas
+    # las categorias- contra la suma de unos pocos presupuestos, lo que
+    # inflaba el % artificialmente si no todas las categorias tenian limite).
+    #
+    # El remanente (rollover) solo se aplica cuando se consulta el mes actual
+    # de verdad: es un ajuste "de cara a este mes", no tiene sentido
+    # recalcularlo para un mes ya cerrado del pasado.
+    now = datetime.now(timezone.utc)
     budgets = db.query(models.Budget).join(models.Category).filter(models.Category.user_id == user_id).all()
-    budgeted_total = sum(float(b.monthly_limit) for b in budgets)
-    budget_used_ratio = (expense / budgeted_total) if budgeted_total > 0 else None
+    if (year, month) == (now.year, now.month):
+        prev_spent_by_category = spent_by_category_previous_month(db, user_id)
+        limits_by_category = {
+            b.category_id: effective_limit(b, prev_spent_by_category.get(b.category_id, 0.0)) for b in budgets
+        }
+    else:
+        limits_by_category = {b.category_id: float(b.monthly_limit) for b in budgets}
+
+    budgeted_total = sum(limits_by_category.values())
+    budgeted_expense = sum(spend_by_category.get(category_id, 0.0) for category_id in limits_by_category)
+    budget_used_ratio = (budgeted_expense / budgeted_total) if budgeted_total > 0 else None
 
     last_six_months = []
     for y, m in months:
