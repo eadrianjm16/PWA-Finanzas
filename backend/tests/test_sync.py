@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import SessionLocal, engine
-from app.services.sync import sync_transactions
+from app.services.sync import learn_rule_from_categorization, sync_transactions
 
 
 @pytest.fixture
@@ -115,6 +115,37 @@ async def test_categorization_rule_overrides_automatic_suggestion(db, account):
 
     tx = db.query(models.Transaction).filter_by(entry_reference="tx-rule").first()
     assert tx.category.name == "Alimentación"
+
+
+async def test_sync_reports_which_transactions_a_rule_categorized(db, account):
+    rule_category = db.query(models.Category).filter_by(user_id=account.user_id, name="Alimentación").first()
+    db.add(models.CategorizationRule(user_id=account.user_id, keyword="ALGO RARO", category_id=rule_category.id))
+    db.commit()
+
+    client = FakeClient([_eb_tx("tx-reported", remittance="ALGO RARO SIN REGLA")])
+    applied = await sync_transactions(db, account, client)
+
+    assert len(applied) == 1
+    assert applied[0]["category_name"] == "Alimentación"
+
+
+async def test_learn_rule_from_categorization_creates_then_updates(db, account):
+    alimentacion = db.query(models.Category).filter_by(user_id=account.user_id, name="Alimentación").first()
+    otros = db.query(models.Category).filter_by(user_id=account.user_id, name="Otros").first()
+
+    learn_rule_from_categorization(db, account.user_id, "Netflix", alimentacion.id)
+    db.commit()
+    rules = db.query(models.CategorizationRule).filter_by(user_id=account.user_id, keyword="Netflix").all()
+    assert len(rules) == 1
+    assert rules[0].category_id == alimentacion.id
+
+    # Categorizar el mismo comercio otra vez con otra categoria actualiza la
+    # regla existente en vez de crear una duplicada.
+    learn_rule_from_categorization(db, account.user_id, "Netflix", otros.id)
+    db.commit()
+    rules = db.query(models.CategorizationRule).filter_by(user_id=account.user_id, keyword="Netflix").all()
+    assert len(rules) == 1
+    assert rules[0].category_id == otros.id
 
 
 async def test_sync_deduplicates_within_the_same_batch(db, account):

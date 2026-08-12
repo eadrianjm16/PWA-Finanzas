@@ -121,6 +121,29 @@ def _matching_rule_category_id(rules: list[models.CategorizationRule], text: str
     return None
 
 
+def learn_rule_from_categorization(db: Session, user_id: str, keyword: str | None, category_id: str) -> None:
+    """Cuando el usuario categoriza un movimiento a mano, se recuerda para la
+    proxima vez: crea (o actualiza si ya existia) una regla con el nombre del
+    comercio como palabra clave. Solo se usa counterparty_name -no
+    remittance_information-, que suele traer sufijos variables (ciudad,
+    numero de terminal...) y haria la regla demasiado estrecha o demasiado
+    ancha segun el caso."""
+    keyword = (keyword or "").strip()
+    if not keyword:
+        return
+
+    existing = (
+        db.query(models.CategorizationRule)
+        .filter_by(user_id=user_id)
+        .filter(models.CategorizationRule.keyword.ilike(keyword))
+        .first()
+    )
+    if existing is not None:
+        existing.category_id = category_id
+    else:
+        db.add(models.CategorizationRule(user_id=user_id, keyword=keyword, category_id=category_id))
+
+
 def _amount_key(value) -> str:
     return f"{float(value):.2f}"
 
@@ -140,7 +163,7 @@ def _pending_by_content(db: Session, account_uid: str) -> dict[tuple, models.Tra
 INSERT_CHUNK_SIZE = 200
 
 
-async def sync_transactions(db: Session, account: models.LinkedAccount, client: EnableBankingClient) -> None:
+async def sync_transactions(db: Session, account: models.LinkedAccount, client: EnableBankingClient) -> list[dict]:
     """Trae movimientos nuevos desde el ultimo sync (o desde 90 dias atras la
     primera vez) y los inserta de forma idempotente.
 
@@ -151,6 +174,10 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
     round-trip de red cuenta - con ~250 movimientos en un primer backfill,
     la version anterior (una consulta y un INSERT por movimiento) tardaba
     30+ segundos; esta version tarda bajo un segundo.
+
+    Devuelve los movimientos nuevos que se categorizaron por una regla
+    aprendida (no por la sugerencia automatica) - el router los usa para
+    avisar de "N movimientos categorizados automaticamente".
     """
     date_from = account.last_synced_at.date() if account.last_synced_at else (date.today() - BACKFILL_WINDOW)
     raw_transactions = await client.fetch_all_transactions(account.account_uid, date_from=date_from, date_to=date.today())
@@ -166,6 +193,7 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
     pending_by_content = _pending_by_content(db, account.account_uid)
 
     new_rows: list[dict] = []
+    rule_applied: list[dict] = []
     for eb_tx in raw_transactions:
         key = eb_tx.get("entry_reference") or _fallback_key(eb_tx)
         if key in existing_keys:
@@ -191,6 +219,15 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
         rule_category_id = _matching_rule_category_id(rules, remittance or counterparty.get("name") or "")
         if rule_category_id:
             category = next((c for c in categories.values() if c.id == rule_category_id), None)
+            if category is not None:
+                rule_applied.append(
+                    {
+                        "name": counterparty.get("name") or remittance.split("\n")[0].strip() or "Movimiento",
+                        "category_name": category.name,
+                        "amount": float(amount),
+                        "currency": currency,
+                    }
+                )
         else:
             category_name = suggest_category(mcc=mcc, remittance_information=remittance, credit_debit_indicator=indicator)
             category = categories.get(category_name)
@@ -218,6 +255,7 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
 
     account.last_synced_at = datetime.now(timezone.utc)
     db.commit()
+    return rule_applied
 
 
 def delete_connection(db: Session, connection: models.BankConnection) -> None:

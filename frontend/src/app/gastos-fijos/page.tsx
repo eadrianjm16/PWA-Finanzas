@@ -117,6 +117,13 @@ function GastosFijosContent() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editDueDay, setEditDueDay] = useState("1");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
   async function refreshAll() {
     await Promise.all([mutate(), mutateSummary()]);
   }
@@ -159,6 +166,38 @@ function GastosFijosContent() {
     if (!window.confirm(`¿Borrar "${expense.name}"?`)) return;
     await apiFetch(`/api/fixed-expenses/${expense.id}`, { method: "DELETE" });
     await refreshAll();
+  }
+
+  function startEdit(expense: FixedExpense) {
+    setEditingId(expense.id);
+    setEditName(expense.name);
+    setEditAmount(String(expense.amount));
+    setEditDueDay(String(expense.due_day));
+    setEditError(null);
+  }
+
+  async function saveEdit(expenseId: string) {
+    const trimmed = editName.trim();
+    const amountValue = Number(editAmount);
+    const dayValue = Number(editDueDay);
+    if (!trimmed || !amountValue || amountValue <= 0 || dayValue < 1 || dayValue > 31) {
+      setEditError("Revisa los datos");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await apiFetch(`/api/fixed-expenses/${expenseId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: trimmed, amount: amountValue, due_day: dayValue }),
+      });
+      setEditingId(null);
+      await refreshAll();
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : "No se pudo guardar");
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   const sorted = [...(expenses ?? [])].sort((a, b) => a.due_day - b.due_day);
@@ -236,27 +275,78 @@ function GastosFijosContent() {
         {sorted.map((expense, index) => (
           <li
             key={expense.id}
-            className={`flex items-center gap-3 px-4 py-3.5 ${index > 0 ? "border-t border-surface-border" : ""}`}
+            className={`px-4 py-3.5 ${index > 0 ? "border-t border-surface-border" : ""}`}
           >
-            <button
-              onClick={() => toggle(expense)}
-              aria-label={expense.checked ? "Marcar como pendiente" : "Marcar como pagado"}
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${
-                expense.checked ? "border-success bg-success text-white" : "border-surface-border"
-              }`}
-            >
-              {expense.checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-            </button>
-            <div className="min-w-0 flex-1">
-              <p className={`truncate text-sm font-medium ${expense.checked ? "text-muted line-through" : ""}`}>
-                {expense.name}
-              </p>
-              <p className="text-xs text-muted">Día {expense.due_day} de cada mes</p>
-            </div>
-            <span className="tabular-nums shrink-0 text-sm font-semibold">{formatMoney(expense.amount, "EUR")}</span>
-            <button onClick={() => remove(expense)} aria-label="Borrar gasto fijo" className="text-danger">
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {editingId === expense.id ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Nombre"
+                  className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    placeholder="Importe"
+                    className="flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={editDueDay}
+                    onChange={(e) => setEditDueDay(e.target.value)}
+                    placeholder="Día"
+                    className="w-20 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                  />
+                </div>
+                {editError && <p className="text-sm text-danger">{editError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => saveEdit(expense.id)}
+                    disabled={editSaving}
+                    className="flex-1 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="rounded-xl border border-surface-border px-4 py-2 text-sm font-medium"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => toggle(expense)}
+                  aria-label={expense.checked ? "Marcar como pendiente" : "Marcar como pagado"}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                    expense.checked ? "border-success bg-success text-white" : "border-surface-border"
+                  }`}
+                >
+                  {expense.checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                </button>
+                <button onClick={() => startEdit(expense)} className="min-w-0 flex-1 text-left">
+                  <p className={`truncate text-sm font-medium ${expense.checked ? "text-muted line-through" : ""}`}>
+                    {expense.name}
+                  </p>
+                  <p className="text-xs text-muted">Día {expense.due_day} de cada mes</p>
+                </button>
+                <span className="tabular-nums shrink-0 text-sm font-semibold">{formatMoney(expense.amount, "EUR")}</span>
+                <button onClick={() => startEdit(expense)} aria-label="Editar gasto fijo" className="text-muted-soft">
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button onClick={() => remove(expense)} aria-label="Borrar gasto fijo" className="text-danger">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </li>
         ))}
       </ul>

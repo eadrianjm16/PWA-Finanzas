@@ -10,7 +10,7 @@ from .. import models, schemas
 from ..deps import CurrentUser, get_current_user, get_db_session
 from ..services.enable_banking import EnableBankingClient, EnableBankingError
 from ..services.push import maybe_send_weekly_digest, notify_new_alerts
-from ..services.sync import recategorize_uncategorized, sync_transactions
+from ..services.sync import learn_rule_from_categorization, recategorize_uncategorized, sync_transactions
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -124,6 +124,42 @@ def export_transactions(
     )
 
 
+@router.patch("/bulk-categorize", response_model=schemas.BulkCategorizeResult)
+def bulk_categorize_transactions(
+    payload: schemas.BulkCategorizeRequest,
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(get_current_user),
+) -> schemas.BulkCategorizeResult:
+    if not payload.entry_references:
+        return schemas.BulkCategorizeResult(updated_count=0)
+
+    category = db.query(models.Category).filter_by(id=payload.category_id, user_id=user.id).first()
+    if category is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Categoría no encontrada")
+
+    # Query.update() no soporta joins de forma portable entre motores: se
+    # resuelven antes las cuentas del usuario y se filtra por account_uid,
+    # en vez de unir con LinkedAccount en la propia sentencia UPDATE.
+    user_account_uids = [
+        row[0] for row in db.query(models.LinkedAccount.account_uid).filter_by(user_id=user.id).all()
+    ]
+    matching = (
+        db.query(models.Transaction)
+        .filter(models.Transaction.account_uid.in_(user_account_uids))
+        .filter(models.Transaction.entry_reference.in_(payload.entry_references))
+        .all()
+    )
+    counterparties = {tx.counterparty_name for tx in matching if tx.counterparty_name}
+    for counterparty_name in counterparties:
+        learn_rule_from_categorization(db, user.id, counterparty_name, category.id)
+
+    for tx in matching:
+        tx.category_id = category.id
+        tx.is_user_categorized = True
+    db.commit()
+    return schemas.BulkCategorizeResult(updated_count=len(matching))
+
+
 @router.patch("/{entry_reference}", response_model=schemas.TransactionOut)
 def categorize_transaction(
     entry_reference: str,
@@ -137,27 +173,29 @@ def categorize_transaction(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Categoría no encontrada")
     transaction.category_id = category.id
     transaction.is_user_categorized = True
+    learn_rule_from_categorization(db, user.id, transaction.counterparty_name, category.id)
     db.commit()
     db.refresh(transaction)
     return transaction
 
 
-@router.post("/sync", response_model=list[schemas.SyncResult])
+@router.post("/sync", response_model=schemas.SyncResponse)
 async def sync_all(
     request: Request, db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
-) -> list[schemas.SyncResult]:
+) -> schemas.SyncResponse:
     client: EnableBankingClient = request.app.state.eb_client
     results: list[schemas.SyncResult] = []
+    auto_categorized: list[dict] = []
     for account in db.query(models.LinkedAccount).filter_by(user_id=user.id).all():
         try:
-            await sync_transactions(db, account, client)
+            auto_categorized.extend(await sync_transactions(db, account, client))
             results.append(schemas.SyncResult(account_uid=account.account_uid, ok=True))
         except EnableBankingError as error:
             results.append(schemas.SyncResult(account_uid=account.account_uid, ok=False, error=str(error)))
 
     notify_new_alerts(db, user.id)
     maybe_send_weekly_digest(db, user.id)
-    return results
+    return schemas.SyncResponse(results=results, auto_categorized=auto_categorized)
 
 
 @router.post("/recategorize-uncategorized", response_model=schemas.RecategorizeResult)

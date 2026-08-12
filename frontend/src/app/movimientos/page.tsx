@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { ArrowDownLeft, ChevronLeft, ChevronRight, Download, RefreshCw, Search, Split, X } from "lucide-react";
+import { ArrowDownLeft, Check, ChevronLeft, ChevronRight, Download, ListChecks, RefreshCw, Search, Split, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import BulkCategoryPicker from "@/components/BulkCategoryPicker";
 import { SkeletonList } from "@/components/Skeleton";
 import TransactionDetail from "@/components/TransactionDetail";
 import { CategoryIcon } from "@/lib/icons";
 import { apiFetch, ApiError, downloadFile } from "@/lib/api";
 import { dayKey, formatDay, formatMoney, formatMonthLabel, shiftMonth } from "@/lib/format";
-import type { SyncResult, Transaction } from "@/lib/types";
+import type { AutoCategorizedItem, SyncResponse, Transaction } from "@/lib/types";
 
 function monthBounds(year: number, month: number): { dateFrom: string; dateTo: string } {
   const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
@@ -50,14 +51,49 @@ function MovimientosContent() {
   const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Transaction | null>(null);
 
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedRefs, setSelectedRefs] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [autoCategorized, setAutoCategorized] = useState<AutoCategorizedItem[] | null>(null);
+  const [autoCategorizedExpanded, setAutoCategorizedExpanded] = useState(false);
+
+  function toggleSelectMode() {
+    setSelectMode((prev) => !prev);
+    setSelectedRefs(new Set());
+  }
+
+  function toggleRef(entryReference: string) {
+    setSelectedRefs((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryReference)) next.delete(entryReference);
+      else next.add(entryReference);
+      return next;
+    });
+  }
+
+  async function applyBulkCategory(categoryId: string) {
+    await apiFetch("/api/transactions/bulk-categorize", {
+      method: "PATCH",
+      body: JSON.stringify({ entry_references: [...selectedRefs], category_id: categoryId }),
+    });
+    setPickerOpen(false);
+    setSelectMode(false);
+    setSelectedRefs(new Set());
+    await mutate();
+  }
+
   async function sync() {
     setSyncing(true);
     setError(null);
+    setAutoCategorized(null);
     try {
-      const results = await apiFetch<SyncResult[]>("/api/transactions/sync", { method: "POST" });
-      const failed = results.filter((r) => !r.ok);
+      const response = await apiFetch<SyncResponse>("/api/transactions/sync", { method: "POST" });
+      const failed = response.results.filter((r) => !r.ok);
       if (failed.length > 0) {
         setError(`No se pudo sincronizar ${failed.length} cuenta(s).`);
+      }
+      if (response.auto_categorized.length > 0) {
+        setAutoCategorized(response.auto_categorized);
       }
       await mutate();
     } catch (err) {
@@ -92,16 +128,29 @@ function MovimientosContent() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Movimientos</h1>
-        <button
-          onClick={sync}
-          disabled={syncing}
-          className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast shadow-[var(--shadow-card)] transition active:scale-95 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} strokeWidth={2.5} />
-          {syncing ? "Sincronizando" : "Sincronizar"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSelectMode}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium shadow-[var(--shadow-card)] transition active:scale-95 ${
+              selectMode ? "bg-foreground text-background" : "border border-surface-border bg-surface text-muted"
+            }`}
+          >
+            <ListChecks className="h-4 w-4" strokeWidth={2.5} />
+            {selectMode ? "Cancelar" : "Seleccionar"}
+          </button>
+          {!selectMode && (
+            <button
+              onClick={sync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast shadow-[var(--shadow-card)] transition active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} strokeWidth={2.5} />
+              {syncing ? "Sincronizando" : "Sincronizar"}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-4 flex items-center justify-between rounded-2xl border border-surface-border bg-surface px-2 py-1.5 shadow-[var(--shadow-card)]">
@@ -154,6 +203,49 @@ function MovimientosContent() {
 
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
+      {autoCategorized && autoCategorized.length > 0 && (
+        <div className="mb-4 overflow-hidden rounded-2xl border border-brand/20 bg-brand-soft shadow-[var(--shadow-card)]">
+          <button
+            onClick={() => setAutoCategorizedExpanded((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+          >
+            <span className="text-sm font-medium text-brand">
+              {autoCategorized.length} movimiento{autoCategorized.length === 1 ? "" : "s"} categorizado
+              {autoCategorized.length === 1 ? "" : "s"} automáticamente
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="text-xs text-brand underline">{autoCategorizedExpanded ? "ocultar" : "ver detalle"}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAutoCategorized(null);
+                }}
+                aria-label="Descartar"
+                className="flex h-5 w-5 items-center justify-center rounded-full text-brand"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          </button>
+          {autoCategorizedExpanded && (
+            <ul className="border-t border-brand/20 bg-surface">
+              {autoCategorized.map((item, index) => (
+                <li
+                  key={index}
+                  className={`flex items-center justify-between px-4 py-2.5 text-sm ${index > 0 ? "border-t border-surface-border" : ""}`}
+                >
+                  <div>
+                    <p className="font-medium">{item.name}</p>
+                    <p className="text-xs text-muted">{item.category_name}</p>
+                  </div>
+                  <span className="tabular-nums text-muted">{formatMoney(item.amount, item.currency)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {!transactions && <SkeletonList rows={6} />}
       {transactions?.length === 0 && search && (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-surface-border px-6 py-10 text-center">
@@ -180,12 +272,22 @@ function MovimientosContent() {
               {dayTransactions.map((tx, index) => {
                 const isCredit = tx.credit_debit_indicator === "CRDT";
                 const title = tx.counterparty_name || tx.remittance_information || "Movimiento";
+                const isChecked = selectedRefs.has(tx.entry_reference);
                 return (
                   <li key={tx.entry_reference} className={index > 0 ? "border-t border-surface-border" : ""}>
                     <button
-                      onClick={() => setSelected(tx)}
+                      onClick={() => (selectMode ? toggleRef(tx.entry_reference) : setSelected(tx))}
                       className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-surface-hover"
                     >
+                      {selectMode && (
+                        <span
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                            isChecked ? "border-brand bg-brand text-white" : "border-surface-border"
+                          }`}
+                        >
+                          {isChecked && <Check className="h-3 w-3" strokeWidth={3} />}
+                        </span>
+                      )}
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-hover">
                         <CategoryIcon
                           name={tx.category?.system_icon_name ?? "help-circle"}
@@ -218,6 +320,24 @@ function MovimientosContent() {
           </section>
         ))}
       </div>
+
+      {selectMode && selectedRefs.size > 0 && (
+        <div className="fixed inset-x-0 bottom-20 z-20 mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl border border-surface-border bg-foreground px-4 py-3 text-background shadow-[var(--shadow-pop)]">
+          <span className="text-sm font-medium">
+            {selectedRefs.size} seleccionado{selectedRefs.size === 1 ? "" : "s"}
+          </span>
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition active:scale-95"
+          >
+            Categorizar
+          </button>
+        </div>
+      )}
+
+      {pickerOpen && (
+        <BulkCategoryPicker count={selectedRefs.size} onPick={applyBulkCategory} onClose={() => setPickerOpen(false)} />
+      )}
 
       {selected && <TransactionDetail transaction={selected} onClose={() => setSelected(null)} onUpdated={mutate} />}
     </main>

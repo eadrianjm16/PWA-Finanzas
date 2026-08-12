@@ -56,6 +56,18 @@ export interface SyncResult {
   error: string | null;
 }
 
+export interface AutoCategorizedItem {
+  name: string;
+  category_name: string;
+  amount: number;
+  currency: string;
+}
+
+export interface SyncResponse {
+  results: SyncResult[];
+  auto_categorized: AutoCategorizedItem[];
+}
+
 export interface Budget {
   category: Category;
   monthly_limit: number | null;

@@ -129,10 +129,31 @@ class TransactionCategorizeRequest(BaseModel):
     category_id: str
 
 
+class BulkCategorizeRequest(BaseModel):
+    entry_references: list[str]
+    category_id: str
+
+
+class BulkCategorizeResult(BaseModel):
+    updated_count: int
+
+
 class SyncResult(BaseModel):
     account_uid: str
     ok: bool
     error: str | None = None
+
+
+class AutoCategorizedItemOut(BaseModel):
+    name: str
+    category_name: str
+    amount: float
+    currency: str
+
+
+class SyncResponse(BaseModel):
+    results: list[SyncResult]
+    auto_categorized: list[AutoCategorizedItemOut]
 
 
 class CategoryCreateRequest(BaseModel):
