@@ -343,3 +343,4 @@ class AnalysisSummary(BaseModel):
     budget_used_ratio: float | None  # expense / budgeted_total, None si no hay presupuestos
     last_six_months: list[MonthTotals]
     category_breakdown: list[CategoryBreakdownItem]  # solo gastos, del mes consultado
+    income_breakdown: list[CategoryBreakdownItem]  # solo ingresos, del mes consultado

@@ -22,6 +22,8 @@ function MovimientosContent() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const isCurrentMonth = monthKey === currentMonthKey;
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -113,7 +115,8 @@ function MovimientosContent() {
         <span className="text-sm font-semibold">{formatMonthLabel(monthKey)}</span>
         <button
           onClick={() => goToMonth(1)}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+          disabled={isCurrentMonth}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover disabled:opacity-30"
           aria-label="Mes siguiente"
         >
           <ChevronRight className="h-4 w-4" />

@@ -61,6 +61,7 @@ def build_summary(db: Session, user_id: str, year: int, month: int) -> dict:
 
     income = expense = no_computable = 0.0
     spend_by_category: dict[str, float] = {}
+    income_by_category: dict[str, float] = {}
     for tx in current_month_transactions:
         amount = abs(float(tx.amount))
         if tx.entry_reference in internal_transfer_refs:
@@ -68,6 +69,8 @@ def build_summary(db: Session, user_id: str, year: int, month: int) -> dict:
             continue
         if tx.credit_debit_indicator == "CRDT":
             income += amount
+            if tx.category_id is not None:
+                income_by_category[tx.category_id] = income_by_category.get(tx.category_id, 0) + amount
         else:
             expense += amount
             if tx.category_id is not None:
@@ -101,6 +104,11 @@ def build_summary(db: Session, user_id: str, year: int, month: int) -> dict:
         for category_id, spent in sorted(spend_by_category.items(), key=lambda kv: -kv[1])
         if category_id in categories
     ]
+    income_breakdown = [
+        {"category": categories[category_id], "spent": spent}
+        for category_id, spent in sorted(income_by_category.items(), key=lambda kv: -kv[1])
+        if category_id in categories
+    ]
 
     return {
         "month": f"{year:04d}-{month:02d}",
@@ -112,4 +120,5 @@ def build_summary(db: Session, user_id: str, year: int, month: int) -> dict:
         "budget_used_ratio": budget_used_ratio,
         "last_six_months": last_six_months,
         "category_breakdown": breakdown,
+        "income_breakdown": income_breakdown,
     }

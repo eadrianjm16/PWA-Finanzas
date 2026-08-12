@@ -80,6 +80,28 @@ def test_build_summary_totals_and_six_months(db, user_id):
     assert summary["category_breakdown"][0]["spent"] == 200.0
 
 
+def test_build_summary_income_breakdown_only_includes_categorized_credits(db, user_id):
+    account = _make_account(db, user_id, "acc-income-breakdown")
+    payroll = models.Category(user_id=user_id, name="Nómina/Ingresos", system_icon_name="wallet", sort_order=0)
+    other_income = models.Category(user_id=user_id, name="Otros ingresos", system_icon_name="tag", sort_order=1)
+    expense_category = models.Category(user_id=user_id, name="Ocio", system_icon_name="tag", sort_order=2)
+    db.add_all([payroll, other_income, expense_category])
+    db.flush()
+
+    _make_tx(db, account.account_uid, "tx-payroll-1", 1800, "CRDT", 2026, 4, 1, category_id=payroll.id)
+    _make_tx(db, account.account_uid, "tx-freelance-1", 300, "CRDT", 2026, 4, 5, category_id=other_income.id)
+    _make_tx(db, account.account_uid, "tx-uncategorized-income", 50, "CRDT", 2026, 4, 6)
+    _make_tx(db, account.account_uid, "tx-leisure-1", 40, "DBIT", 2026, 4, 10, category_id=expense_category.id)
+    db.commit()
+
+    summary = build_summary(db, user_id, 2026, 4)
+
+    assert summary["income"] == 2150.0  # 1800 + 300 + 50, incluye el sin categorizar
+    by_category_name = {item["category"].name: item["spent"] for item in summary["income_breakdown"]}
+    assert by_category_name == {"Nómina/Ingresos": 1800.0, "Otros ingresos": 300.0}
+    assert "Ocio" not in by_category_name  # es un gasto, no debe colarse en el desglose de ingresos
+
+
 def test_build_summary_excludes_hidden_accounts(db, user_id):
     # Mes distinto al resto de tests de este archivo: los tests comparten el
     # mismo fichero sqlite de prueba y no estan aislados entre si.

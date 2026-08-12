@@ -29,6 +29,8 @@ function AnalisisContent() {
   const { data: netWorthHistory } = useSWR<NetWorthPoint[]>("/api/net-worth/history", apiFetch);
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const isCurrentMonth = monthKey === currentMonthKey;
 
   function goToMonth(delta: number) {
     const next = shiftMonth(monthKey, delta);
@@ -51,7 +53,8 @@ function AnalisisContent() {
         <span className="text-sm font-semibold">{formatMonthLabel(monthKey)}</span>
         <button
           onClick={() => goToMonth(1)}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+          disabled={isCurrentMonth}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover disabled:opacity-30"
           aria-label="Mes siguiente"
         >
           <ChevronRight className="h-4 w-4" />
@@ -125,7 +128,7 @@ function AnalisisContent() {
             </section>
           )}
 
-          <section className="rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
+          <section className="mb-6 rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
             <h2 className="mb-4 text-sm font-semibold text-muted">Gastos por categoría</h2>
             {summary.category_breakdown.length === 0 ? (
               <p className="text-sm text-muted">Sin gastos categorizados este mes.</p>
@@ -139,6 +142,26 @@ function AnalisisContent() {
                 }))}
                 onSelect={(id) => {
                   const item = summary.category_breakdown.find((b) => b.category.id === id);
+                  if (item) setSelectedCategory({ id, name: item.category.name });
+                }}
+              />
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-surface-border bg-surface p-4 shadow-[var(--shadow-card)]">
+            <h2 className="mb-4 text-sm font-semibold text-muted">Ingresos por categoría</h2>
+            {(summary.income_breakdown ?? []).length === 0 ? (
+              <p className="text-sm text-muted">Sin ingresos categorizados este mes.</p>
+            ) : (
+              <DonutChart
+                segments={(summary.income_breakdown ?? []).map((item, index) => ({
+                  id: item.category.id,
+                  label: item.category.name,
+                  value: item.spent,
+                  color: PALETTE[index % PALETTE.length],
+                }))}
+                onSelect={(id) => {
+                  const item = (summary.income_breakdown ?? []).find((b) => b.category.id === id);
                   if (item) setSelectedCategory({ id, name: item.category.name });
                 }}
               />

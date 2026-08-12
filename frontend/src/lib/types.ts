@@ -93,6 +93,7 @@ export interface AnalysisSummary {
   budget_used_ratio: number | null;
   last_six_months: MonthTotals[];
   category_breakdown: CategoryBreakdownItem[];
+  income_breakdown: CategoryBreakdownItem[];
 }
 
 export interface Debtor {
