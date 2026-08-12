@@ -20,9 +20,12 @@ from .routers import (
     banks,
     budgets,
     categories,
+    categorization_rules,
     debtors,
+    fixed_expenses,
     net_worth,
     push,
+    savings_goals,
     subscriptions,
     transactions,
 )
@@ -74,6 +77,9 @@ app.include_router(admin.router)
 app.include_router(push.router)
 app.include_router(subscriptions.router)
 app.include_router(net_worth.router)
+app.include_router(categorization_rules.router)
+app.include_router(savings_goals.router)
+app.include_router(fixed_expenses.router)
 
 
 @app.get("/health")

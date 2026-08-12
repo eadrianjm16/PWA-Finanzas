@@ -2,16 +2,27 @@
 
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { ArrowDownLeft, RefreshCw, Search, Split, X } from "lucide-react";
+import { ArrowDownLeft, ChevronLeft, ChevronRight, Download, RefreshCw, Search, Split, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { SkeletonList } from "@/components/Skeleton";
 import TransactionDetail from "@/components/TransactionDetail";
 import { CategoryIcon } from "@/lib/icons";
-import { apiFetch, ApiError } from "@/lib/api";
-import { dayKey, formatDay, formatMoney } from "@/lib/format";
+import { apiFetch, ApiError, downloadFile } from "@/lib/api";
+import { dayKey, formatDay, formatMoney, formatMonthLabel, shiftMonth } from "@/lib/format";
 import type { SyncResult, Transaction } from "@/lib/types";
 
+function monthBounds(year: number, month: number): { dateFrom: string; dateTo: string } {
+  const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const to = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+  return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+}
+
 function MovimientosContent() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
 
@@ -20,10 +31,21 @@ function MovimientosContent() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const query = search ? `/api/transactions?limit=200&search=${encodeURIComponent(search)}` : "/api/transactions?limit=200";
-  const { data: transactions, mutate } = useSWR<Transaction[]>(query, apiFetch);
+  function goToMonth(delta: number) {
+    const next = shiftMonth(monthKey, delta);
+    setYear(next.year);
+    setMonth(next.month);
+  }
+
+  const { dateFrom, dateTo } = monthBounds(year, month);
+  const filterParams = `date_from=${dateFrom}&date_to=${dateTo}${search ? `&search=${encodeURIComponent(search)}` : ""}`;
+  const { data: transactions, mutate } = useSWR<Transaction[]>(
+    `/api/transactions?limit=500&${filterParams}`,
+    apiFetch
+  );
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Transaction | null>(null);
 
   async function sync() {
@@ -43,6 +65,18 @@ function MovimientosContent() {
     }
   }
 
+  async function exportCsv() {
+    setExporting(true);
+    setError(null);
+    try {
+      await downloadFile(`/api/transactions/export?${filterParams}`, `movimientos-${monthKey}.csv`);
+    } catch {
+      setError("No se pudo exportar");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const groups = useMemo(() => {
     if (!transactions) return [];
     const byDay = new Map<string, Transaction[]>();
@@ -56,7 +90,7 @@ function MovimientosContent() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Movimientos</h1>
         <button
           onClick={sync}
@@ -68,23 +102,51 @@ function MovimientosContent() {
         </button>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft" />
-        <input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Buscar movimiento…"
-          className="w-full rounded-xl border border-surface-border bg-surface py-2.5 pl-10 pr-9 text-sm outline-none transition-colors focus:border-brand focus:ring-4 focus:ring-brand-soft"
-        />
-        {searchInput && (
-          <button
-            onClick={() => setSearchInput("")}
-            aria-label="Borrar búsqueda"
-            className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-soft hover:bg-surface-hover"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
+      <div className="mb-4 flex items-center justify-between rounded-2xl border border-surface-border bg-surface px-2 py-1.5 shadow-[var(--shadow-card)]">
+        <button
+          onClick={() => goToMonth(-1)}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+          aria-label="Mes anterior"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold">{formatMonthLabel(monthKey)}</span>
+        <button
+          onClick={() => goToMonth(1)}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-hover"
+          aria-label="Mes siguiente"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mb-4 flex gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft" />
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Buscar movimiento…"
+            className="w-full rounded-xl border border-surface-border bg-surface py-2.5 pl-10 pr-9 text-sm outline-none transition-colors focus:border-brand focus:ring-4 focus:ring-brand-soft"
+          />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput("")}
+              aria-label="Borrar búsqueda"
+              className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-soft hover:bg-surface-hover"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={exportCsv}
+          disabled={exporting || !transactions?.length}
+          aria-label="Exportar CSV"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-surface-border bg-surface text-muted shadow-[var(--shadow-card)] transition hover:bg-surface-hover disabled:opacity-50"
+        >
+          <Download className="h-4 w-4" />
+        </button>
       </div>
 
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
@@ -100,7 +162,7 @@ function MovimientosContent() {
           <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft">
             <ArrowDownLeft className="h-6 w-6 text-brand" />
           </span>
-          <p className="text-sm text-muted">Sin movimientos todavía.</p>
+          <p className="text-sm text-muted">Sin movimientos este mes.</p>
           <p className="text-sm text-muted">Conecta un banco y pulsa &quot;Sincronizar&quot;.</p>
         </div>
       )}

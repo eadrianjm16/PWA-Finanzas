@@ -13,10 +13,14 @@ HISTORY_WINDOW_DAYS = 180
 
 def snapshot_net_worth(db: Session, user_id: str) -> None:
     accounts = db.query(models.LinkedAccount).filter_by(user_id=user_id, is_visible=True).all()
-    if not accounts or not any(a.last_balance_amount for a in accounts):
-        return  # balances nunca actualizados: nada fiable que registrar todavia
+    # Solo se suman cuentas en EUR: el resto de la app (Analisis, Presupuestos,
+    # Saldo total) tampoco convierte divisas, mezclar aqui daria un total sin
+    # sentido en vez de simplemente incompleto.
+    eur_accounts = [a for a in accounts if a.last_balance_amount and (a.last_balance_currency or "EUR") == "EUR"]
+    if not eur_accounts:
+        return  # balances nunca actualizados (o solo hay cuentas en otra divisa): nada fiable que registrar todavia
 
-    total = sum(float(a.last_balance_amount) for a in accounts if a.last_balance_amount)
+    total = sum(float(a.last_balance_amount) for a in eur_accounts)
     today = date.today().isoformat()
 
     existing = db.get(models.NetWorthSnapshot, (user_id, today))

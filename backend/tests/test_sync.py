@@ -103,6 +103,20 @@ async def test_sync_replaces_pending_transaction_once_booked(db, account):
     assert rows[0].status == "BOOK"
 
 
+async def test_categorization_rule_overrides_automatic_suggestion(db, account):
+    # Sin regla, "BAR PACO" cae en Otros (no hay keyword automatica). Con una
+    # regla del usuario ("PACO" -> Alimentacion), debe ganarle a esa sugerencia.
+    rule_category = db.query(models.Category).filter_by(user_id=account.user_id, name="Alimentación").first()
+    db.add(models.CategorizationRule(user_id=account.user_id, keyword="PACO", category_id=rule_category.id))
+    db.commit()
+
+    client = FakeClient([_eb_tx("tx-rule", remittance="BAR PACO MADRID")])
+    await sync_transactions(db, account, client)
+
+    tx = db.query(models.Transaction).filter_by(entry_reference="tx-rule").first()
+    assert tx.category.name == "Alimentación"
+
+
 async def test_sync_deduplicates_within_the_same_batch(db, account):
     # Dos movimientos identicos en la misma respuesta (raro, pero posible si
     # el fallback key coincide): no deberia intentar insertar dos filas con

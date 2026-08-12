@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
@@ -43,6 +43,38 @@ def _spent_by_category_this_month(db: Session, user: CurrentUser) -> dict[str, f
     return {category_id: abs(float(total)) for category_id, total in rows if category_id is not None}
 
 
+def _spent_by_category_previous_month(db: Session, user: CurrentUser) -> dict[str, float]:
+    now = datetime.now(timezone.utc)
+    this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    prev_month_start = (this_month_start - timedelta(days=1)).replace(day=1)
+    rows = (
+        db.query(models.Transaction.category_id, func.sum(models.Transaction.amount))
+        .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.user_id == user.id)
+        .filter(models.LinkedAccount.is_visible.is_(True))
+        .filter(models.Transaction.credit_debit_indicator == "DBIT")
+        .filter(models.Transaction.booking_date >= prev_month_start)
+        .filter(models.Transaction.booking_date < this_month_start)
+        .group_by(models.Transaction.category_id)
+        .all()
+    )
+    return {category_id: abs(float(total)) for category_id, total in rows if category_id is not None}
+
+
+def _effective_limit(budget: models.Budget | None, prev_spent: float) -> float | None:
+    """Con rollover activo, el limite efectivo de este mes suma lo que sobro
+    el mes pasado (monthly_limit - lo gastado entonces, sin bajar de 0). Solo
+    mira un mes atras -no se acumula sin limite mes a mes- para mantenerlo
+    simple y predecible."""
+    if budget is None:
+        return None
+    limit = float(budget.monthly_limit)
+    if not budget.rollover:
+        return limit
+    leftover = max(0.0, limit - prev_spent)
+    return limit + leftover
+
+
 @router.get("", response_model=list[schemas.BudgetOut])
 def list_budgets(
     db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
@@ -53,6 +85,7 @@ def list_budgets(
         for b in db.query(models.Budget).join(models.Category).filter(models.Category.user_id == user.id).all()
     }
     spent_by_category = _spent_by_category_this_month(db, user)
+    prev_spent_by_category = _spent_by_category_previous_month(db, user)
     return [
         schemas.BudgetOut(
             category=category,
@@ -61,6 +94,10 @@ def list_budgets(
                 if category.id in budgets_by_category
                 else None
             ),
+            effective_limit=_effective_limit(
+                budgets_by_category.get(category.id), prev_spent_by_category.get(category.id, 0.0)
+            ),
+            rollover=budgets_by_category.get(category.id).rollover if category.id in budgets_by_category else False,
             spent_this_month=spent_by_category.get(category.id, 0.0),
         )
         for category in categories
@@ -80,15 +117,19 @@ def upsert_budget(
 
     budget = db.get(models.Budget, category_id)
     if budget is None:
-        budget = models.Budget(category_id=category_id, monthly_limit=payload.monthly_limit)
+        budget = models.Budget(category_id=category_id, monthly_limit=payload.monthly_limit, rollover=payload.rollover)
         db.add(budget)
     else:
         budget.monthly_limit = payload.monthly_limit
+        budget.rollover = payload.rollover
     db.commit()
 
+    prev_spent = _spent_by_category_previous_month(db, user).get(category_id, 0.0)
     return schemas.BudgetOut(
         category=category,
         monthly_limit=float(payload.monthly_limit),
+        effective_limit=_effective_limit(budget, prev_spent),
+        rollover=budget.rollover,
         spent_this_month=_spent_this_month(db, user, category_id),
     )
 

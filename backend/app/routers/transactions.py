@@ -1,15 +1,49 @@
+import csv
+import io
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from .. import models, schemas
 from ..deps import CurrentUser, get_current_user, get_db_session
 from ..services.enable_banking import EnableBankingClient, EnableBankingError
-from ..services.push import notify_new_alerts
+from ..services.push import maybe_send_weekly_digest, notify_new_alerts
 from ..services.sync import recategorize_uncategorized, sync_transactions
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
+
+
+def _filtered_query(
+    db: Session,
+    user_id: str,
+    account_uid: str | None,
+    category_id: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+    search: str | None,
+):
+    query = (
+        db.query(models.Transaction)
+        .join(models.LinkedAccount)
+        .filter(models.LinkedAccount.user_id == user_id)
+    )
+    if account_uid:
+        query = query.filter(models.Transaction.account_uid == account_uid)
+    if category_id:
+        query = query.filter(models.Transaction.category_id == category_id)
+    if date_from:
+        query = query.filter(models.Transaction.booking_date >= date_from)
+    if date_to:
+        query = query.filter(models.Transaction.booking_date <= date_to)
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.filter(
+            (models.Transaction.remittance_information.ilike(pattern))
+            | (models.Transaction.counterparty_name.ilike(pattern))
+        )
+    return query
 
 
 def _get_transaction_or_404(db: Session, user: CurrentUser, entry_reference: str) -> models.Transaction:
@@ -40,34 +74,53 @@ def list_transactions(
     # category/debt_entries son lazy por defecto: sin eager loading, serializar
     # N movimientos dispara N consultas de red separadas a Turso (una por cada
     # `.has_debt_entries` accedido), en vez de una sola consulta con IN.
-    query = (
-        db.query(models.Transaction)
-        .join(models.LinkedAccount)
-        .filter(models.LinkedAccount.user_id == user.id)
-        .options(
-            joinedload(models.Transaction.category),
-            selectinload(models.Transaction.debt_entries),
-        )
+    query = _filtered_query(db, user.id, account_uid, category_id, date_from, date_to, search).options(
+        joinedload(models.Transaction.category),
+        selectinload(models.Transaction.debt_entries),
     )
-    if account_uid:
-        query = query.filter(models.Transaction.account_uid == account_uid)
-    if category_id:
-        query = query.filter(models.Transaction.category_id == category_id)
-    if date_from:
-        query = query.filter(models.Transaction.booking_date >= date_from)
-    if date_to:
-        query = query.filter(models.Transaction.booking_date <= date_to)
-    if search:
-        pattern = f"%{search.strip()}%"
-        query = query.filter(
-            (models.Transaction.remittance_information.ilike(pattern))
-            | (models.Transaction.counterparty_name.ilike(pattern))
-        )
     return (
         query.order_by(models.Transaction.booking_date.desc())
         .limit(min(limit, 500))
         .offset(offset)
         .all()
+    )
+
+
+@router.get("/export")
+def export_transactions(
+    account_uid: str | None = None,
+    category_id: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    search: str | None = None,
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(get_current_user),
+) -> StreamingResponse:
+    query = _filtered_query(db, user.id, account_uid, category_id, date_from, date_to, search).options(
+        joinedload(models.Transaction.category)
+    )
+    rows = query.order_by(models.Transaction.booking_date.desc()).all()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Fecha", "Concepto", "Categoría", "Importe", "Moneda", "Tipo"])
+    for tx in rows:
+        writer.writerow(
+            [
+                tx.booking_date.date().isoformat(),
+                tx.counterparty_name or tx.remittance_information,
+                tx.category.name if tx.category else "",
+                f"{tx.amount:.2f}",
+                tx.currency,
+                "Ingreso" if tx.credit_debit_indicator == "CRDT" else "Gasto",
+            ]
+        )
+    buffer.seek(0)
+
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=movimientos.csv"},
     )
 
 
@@ -103,6 +156,7 @@ async def sync_all(
             results.append(schemas.SyncResult(account_uid=account.account_uid, ok=False, error=str(error)))
 
     notify_new_alerts(db, user.id)
+    maybe_send_weekly_digest(db, user.id)
     return results
 
 

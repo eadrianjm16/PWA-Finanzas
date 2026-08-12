@@ -205,11 +205,14 @@ class SplitTransactionRequest(BaseModel):
 class BudgetOut(BaseModel):
     category: CategoryOut
     monthly_limit: float | None
+    effective_limit: float | None  # monthly_limit + remanente del mes anterior si rollover=True
+    rollover: bool
     spent_this_month: float
 
 
 class BudgetUpsertRequest(BaseModel):
     monthly_limit: float
+    rollover: bool = False
 
 
 class AlertOut(BaseModel):
@@ -253,6 +256,69 @@ class RecurringChargeOut(BaseModel):
 class NetWorthPointOut(BaseModel):
     date: str  # "YYYY-MM-DD"
     total_amount: float
+
+
+class CategorizationRuleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    keyword: str
+    category: CategoryOut
+
+
+class CategorizationRuleCreateRequest(BaseModel):
+    keyword: str
+    category_id: str
+
+
+class SavingsGoalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    target_amount: float
+    current_amount: float
+    created_at: datetime
+
+
+class SavingsGoalCreateRequest(BaseModel):
+    name: str
+    target_amount: float
+
+
+class SavingsGoalContributeRequest(BaseModel):
+    amount: float  # positivo suma, negativo resta
+
+
+class FixedExpenseOut(BaseModel):
+    id: str
+    name: str
+    amount: float
+    due_day: int
+    checked: bool
+
+
+class FixedExpenseCreateRequest(BaseModel):
+    name: str
+    amount: float
+    due_day: int
+
+
+class FixedExpenseUpdateRequest(BaseModel):
+    name: str | None = None
+    amount: float | None = None
+    due_day: int | None = None
+
+
+class IncomeOverrideRequest(BaseModel):
+    monthly_amount: float | None  # null = borrar el override, volver a lo detectado
+
+
+class FixedExpensesSummaryOut(BaseModel):
+    estimated_income: float | None
+    income_is_manual: bool
+    total_fixed: float
+    estimated_leftover: float | None
 
 
 class MonthTotals(BaseModel):

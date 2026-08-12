@@ -113,6 +113,14 @@ def _categories_by_name(db: Session, user_id: str) -> dict[str, models.Category]
     return {c.name: c for c in db.query(models.Category).filter_by(user_id=user_id).all()}
 
 
+def _matching_rule_category_id(rules: list[models.CategorizationRule], text: str) -> str | None:
+    upper = text.upper()
+    for rule in rules:
+        if rule.keyword.upper() in upper:
+            return rule.category_id
+    return None
+
+
 def _amount_key(value) -> str:
     return f"{float(value):.2f}"
 
@@ -148,6 +156,7 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
     raw_transactions = await client.fetch_all_transactions(account.account_uid, date_from=date_from, date_to=date.today())
 
     categories = _categories_by_name(db, account.user_id)
+    rules = db.query(models.CategorizationRule).filter_by(user_id=account.user_id).all()
     existing_keys = {
         row[0]
         for row in db.query(models.Transaction.entry_reference)
@@ -179,8 +188,12 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
                 )
                 db.delete(stale)
 
-        category_name = suggest_category(mcc=mcc, remittance_information=remittance, credit_debit_indicator=indicator)
-        category = categories.get(category_name)
+        rule_category_id = _matching_rule_category_id(rules, remittance or counterparty.get("name") or "")
+        if rule_category_id:
+            category = next((c for c in categories.values() if c.id == rule_category_id), None)
+        else:
+            category_name = suggest_category(mcc=mcc, remittance_information=remittance, credit_debit_indicator=indicator)
+            category = categories.get(category_name)
 
         new_rows.append(
             dict(
@@ -224,17 +237,26 @@ def recategorize_uncategorized(db: Session, user_id: str) -> int:
         .all()
     )
     categories = _categories_by_name(db, user_id)
+    rules = db.query(models.CategorizationRule).filter_by(user_id=user_id).all()
     updated = 0
     for tx in pending:
-        name = suggest_category(
-            mcc=tx.merchant_category_code,
-            remittance_information=tx.remittance_information,
-            credit_debit_indicator=tx.credit_debit_indicator,
+        rule_category_id = _matching_rule_category_id(
+            rules, tx.remittance_information or tx.counterparty_name or ""
         )
-        category = categories.get(name)
-        if category is None or (tx.category is not None and tx.category.name == name):
+        if rule_category_id:
+            new_category_id = rule_category_id
+        else:
+            name = suggest_category(
+                mcc=tx.merchant_category_code,
+                remittance_information=tx.remittance_information,
+                credit_debit_indicator=tx.credit_debit_indicator,
+            )
+            category = categories.get(name)
+            new_category_id = category.id if category else None
+
+        if new_category_id is None or (tx.category is not None and tx.category.id == new_category_id):
             continue
-        tx.category_id = category.id
+        tx.category_id = new_category_id
         updated += 1
     db.commit()
     return updated

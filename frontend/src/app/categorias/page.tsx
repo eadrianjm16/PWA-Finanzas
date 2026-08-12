@@ -2,15 +2,119 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { ChevronDown, ChevronUp, Plus, RotateCw, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, RotateCw, Tag, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import CategoryEditor from "@/components/CategoryEditor";
 import { SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { CategoryIcon } from "@/lib/icons";
-import type { Category } from "@/lib/types";
+import type { Category, CategorizationRule } from "@/lib/types";
 
 const OTROS_NAME = "Otros";
+
+function CategorizationRulesSection({ categories }: { categories: Category[] | undefined }) {
+  const { data: rules, mutate } = useSWR<CategorizationRule[]>("/api/categorization-rules", apiFetch);
+  const [keyword, setKeyword] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function addRule() {
+    const trimmed = keyword.trim();
+    if (!trimmed || !categoryId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch("/api/categorization-rules", {
+        method: "POST",
+        body: JSON.stringify({ keyword: trimmed, category_id: categoryId }),
+      });
+      setKeyword("");
+      setCategoryId("");
+      await mutate();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo crear la regla");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteRule(id: string) {
+    try {
+      await apiFetch(`/api/categorization-rules/${id}`, { method: "DELETE" });
+      await mutate();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo borrar la regla");
+    }
+  }
+
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2 px-1 text-sm font-semibold text-muted">Reglas de categorización</h2>
+      <p className="mb-3 px-1 text-xs text-muted">
+        Si el concepto de un movimiento contiene esta palabra, se categoriza así automáticamente en cada
+        sincronización — gana a la sugerencia por defecto.
+      </p>
+
+      {rules && rules.length > 0 && (
+        <ul className="mb-3 overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+          {rules.map((rule, index) => (
+            <li
+              key={rule.id}
+              className={`flex items-center gap-3 px-4 py-3 ${index > 0 ? "border-t border-surface-border" : ""}`}
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-hover">
+                <Tag className="h-3.5 w-3.5 text-muted" />
+              </span>
+              <p className="flex-1 text-sm">
+                <span className="font-medium">&quot;{rule.keyword}&quot;</span>{" "}
+                <span className="text-muted">→ {rule.category.name}</span>
+              </p>
+              <button
+                onClick={() => deleteRule(rule.id)}
+                aria-label="Borrar regla"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-danger transition hover:bg-danger-soft"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-col gap-2 rounded-2xl border border-surface-border bg-surface p-3 shadow-[var(--shadow-card)]">
+        <div className="flex gap-2">
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="Palabra clave (ej. UBER)"
+            className="min-w-0 flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+          />
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="rounded-xl border border-surface-border bg-background px-2 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+          >
+            <option value="">Categoría…</option>
+            {categories?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <button
+          onClick={addRule}
+          disabled={saving || !keyword.trim() || !categoryId}
+          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition active:scale-[0.98] disabled:opacity-50"
+        >
+          Añadir regla
+        </button>
+      </div>
+    </section>
+  );
+}
 
 function CategoriasContent() {
   const { data: categories, mutate } = useSWR<Category[]>("/api/categories", apiFetch);
@@ -144,14 +248,17 @@ function CategoriasContent() {
       <button
         onClick={recalculate}
         disabled={recalculating}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-sm font-medium text-foreground shadow-[var(--shadow-card)] transition disabled:opacity-50"
+        className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-sm font-medium text-foreground shadow-[var(--shadow-card)] transition disabled:opacity-50"
       >
         <RotateCw className={`h-4 w-4 ${recalculating ? "animate-spin" : ""}`} />
         {recalculating ? "Recalculando…" : "Recalcular categorías de movimientos existentes"}
       </button>
-      <p className="mt-2 px-1 text-xs text-muted">
-        Vuelve a categorizar automáticamente los movimientos que no hayas categorizado a mano.
+      <p className="-mt-4 mb-6 px-1 text-xs text-muted">
+        Vuelve a categorizar automáticamente los movimientos que no hayas categorizado a mano (aplica también tus
+        reglas).
       </p>
+
+      <CategorizationRulesSection categories={categories} />
 
       {editorTarget && (
         <CategoryEditor

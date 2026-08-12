@@ -166,8 +166,87 @@ class Budget(Base):
 
     category_id: Mapped[str] = mapped_column(ForeignKey("categories.id"), primary_key=True)
     monthly_limit: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    rollover: Mapped[bool] = mapped_column(Boolean, default=False)
 
     category: Mapped["Category"] = relationship()
+
+
+class CategorizationRule(Base):
+    """Regla propia del usuario: si el comercio/concepto de un movimiento
+    contiene `keyword`, se le asigna `category_id` en vez de (o antes que) la
+    sugerencia automatica de categorizacion.py."""
+
+    __tablename__ = "categorization_rules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    keyword: Mapped[str] = mapped_column(String, nullable=False)
+    category_id: Mapped[str] = mapped_column(ForeignKey("categories.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    category: Mapped["Category"] = relationship()
+
+
+class SavingsGoal(Base):
+    """Meta de ahorro manual: el usuario actualiza current_amount el mismo
+    (no se deriva de movimientos bancarios)."""
+
+    __tablename__ = "savings_goals"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    target_amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    current_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class WeeklyDigestLog(Base):
+    """Que semana (ISO, p.ej. '2026-W33') ya recibio su resumen push, para no
+    repetirlo cada vez que el usuario sincroniza en la misma semana."""
+
+    __tablename__ = "weekly_digest_log"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    week_key: Mapped[str] = mapped_column(String, primary_key=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class FixedExpense(Base):
+    """Gasto fijo mensual gestionado a mano (alquiler, seguro...), tipo TODO:
+    no se deriva de movimientos bancarios, el usuario la marca como pagada
+    cada mes (ver FixedExpenseCheck)."""
+
+    __tablename__ = "fixed_expenses"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    due_day: Mapped[int] = mapped_column(Integer, nullable=False)  # dia del mes, 1-31
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class FixedExpenseCheck(Base):
+    """Que gasto fijo se marco como pagado en que mes ('YYYY-MM'). La fila
+    solo existe si esta marcado - el mes siguiente no hay fila y vuelve a
+    aparecer sin marcar, sin necesidad de resetear nada de forma activa."""
+
+    __tablename__ = "fixed_expense_checks"
+
+    fixed_expense_id: Mapped[str] = mapped_column(ForeignKey("fixed_expenses.id"), primary_key=True)
+    month_key: Mapped[str] = mapped_column(String, primary_key=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class IncomeOverride(Base):
+    """Nomina mensual escrita a mano por el usuario, que manda sobre la
+    detectada automaticamente en recurring.py si esta presente."""
+
+    __tablename__ = "income_overrides"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    monthly_amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
 
 
 class Debtor(Base):

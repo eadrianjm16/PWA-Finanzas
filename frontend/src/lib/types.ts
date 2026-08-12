@@ -59,6 +59,8 @@ export interface SyncResult {
 export interface Budget {
   category: Category;
   monthly_limit: number | null;
+  effective_limit: number | null;
+  rollover: boolean;
   spent_this_month: number;
 }
 
@@ -138,6 +140,35 @@ export interface RecurringCharge {
 export interface NetWorthPoint {
   date: string;
   total_amount: number;
+}
+
+export interface CategorizationRule {
+  id: string;
+  keyword: string;
+  category: Category;
+}
+
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  target_amount: number;
+  current_amount: number;
+  created_at: string;
+}
+
+export interface FixedExpense {
+  id: string;
+  name: string;
+  amount: number;
+  due_day: number;
+  checked: boolean;
+}
+
+export interface FixedExpensesSummary {
+  estimated_income: number | null;
+  income_is_manual: boolean;
+  total_fixed: number;
+  estimated_leftover: number | null;
 }
 
 export interface AdminUser {

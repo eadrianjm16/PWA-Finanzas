@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import SessionLocal, engine
-from app.recurring import detect_recurring_charges
+from app.recurring import detect_recurring_charges, detect_recurring_income
 
 
 @pytest.fixture
@@ -34,6 +34,23 @@ def account(db: Session) -> models.LinkedAccount:
     db.add(account)
     db.commit()
     return account
+
+
+def _add_credit_tx(db, account_uid, days_ago, amount, name, category_id=None):
+    booking_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    db.add(
+        models.Transaction(
+            entry_reference=f"tx-{uuid.uuid4()}",
+            account_uid=account_uid,
+            category_id=category_id,
+            amount=amount,
+            currency="EUR",
+            credit_debit_indicator="CRDT",
+            booking_date=booking_date,
+            remittance_information="",
+            counterparty_name=name,
+        )
+    )
 
 
 def _add_tx(db, account_uid, days_ago, amount, name, entry_reference=None):
@@ -119,3 +136,42 @@ def test_other_users_charges_are_not_mixed_in(db, account):
     charges = detect_recurring_charges(db, account.user_id)
 
     assert len(charges) == 1
+
+
+def test_detect_recurring_income_picks_the_payroll_category(db, account):
+    payroll_category = models.Category(user_id=account.user_id, name="Nómina/Ingresos", system_icon_name="wallet", sort_order=0)
+    db.add(payroll_category)
+    db.flush()
+
+    _add_credit_tx(db, account.account_uid, 62, 1800.0, "Empresa SL", category_id=payroll_category.id)
+    _add_credit_tx(db, account.account_uid, 31, 1800.0, "Empresa SL", category_id=payroll_category.id)
+    _add_credit_tx(db, account.account_uid, 1, 1800.0, "Empresa SL", category_id=payroll_category.id)
+    # Un reembolso recurrente mas pequeño no deberia ganarle a la nomina categorizada.
+    _add_credit_tx(db, account.account_uid, 31, 15.0, "Reembolso app")
+    _add_credit_tx(db, account.account_uid, 1, 15.0, "Reembolso app")
+    db.commit()
+
+    income = detect_recurring_income(db, account.user_id)
+
+    assert income is not None
+    assert income["amount"] == 1800.0
+
+
+def test_detect_recurring_income_falls_back_to_largest_when_no_payroll_category(db, account):
+    _add_credit_tx(db, account.account_uid, 31, 50.0, "Reembolso pequeño")
+    _add_credit_tx(db, account.account_uid, 1, 50.0, "Reembolso pequeño")
+    _add_credit_tx(db, account.account_uid, 31, 2200.0, "Cliente Freelance")
+    _add_credit_tx(db, account.account_uid, 1, 2200.0, "Cliente Freelance")
+    db.commit()
+
+    income = detect_recurring_income(db, account.user_id)
+
+    assert income is not None
+    assert income["amount"] == 2200.0
+
+
+def test_detect_recurring_income_returns_none_without_recurring_credits(db, account):
+    _add_credit_tx(db, account.account_uid, 5, 1800.0, "Empresa SL")
+    db.commit()
+
+    assert detect_recurring_income(db, account.user_id) is None
