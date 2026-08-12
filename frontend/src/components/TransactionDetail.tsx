@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, CheckCircle2, ChevronLeft, Circle, MessageCircle, Split, Tag, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, Circle, Contact, MessageCircle, Split, Tag, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { CategoryIcon } from "@/lib/icons";
-import { buildWhatsAppLink } from "@/lib/whatsapp";
+import { buildWhatsAppLink, isContactPickerSupported, pickPhoneContact } from "@/lib/whatsapp";
 import type { Category, Debtor, Transaction } from "@/lib/types";
 
 type SplitMode = "equal" | "fixed";
@@ -39,6 +39,8 @@ export default function TransactionDetail({
   const [myWeight, setMyWeight] = useState("1");
   const [newDebtorName, setNewDebtorName] = useState("");
   const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([]);
+  const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null);
+  const [phoneDraft, setPhoneDraft] = useState("");
 
   useEffect(() => {
     apiFetch<Category[]>("/api/categories")
@@ -119,17 +121,43 @@ export default function TransactionDetail({
     return splitMode === "equal" ? shareFor(debtorId) : Number(fixedAmounts[debtorId]?.replace(",", ".")) || 0;
   }
 
-  function whatsAppMessageFor(amount: number): string {
-    const title = transaction.counterparty_name || transaction.remittance_information || "un movimiento";
-    const dateStr = new Date(transaction.booking_date).toLocaleDateString("es-ES", {
+  function splitDateLabel(): string {
+    return new Date(transaction.booking_date).toLocaleDateString("es-ES", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
+  }
+
+  function splitTitle(): string {
+    return transaction.counterparty_name || transaction.remittance_information || "un movimiento";
+  }
+
+  // WhatsApp interpreta *texto* como negrita en el mensaje ya escrito - no es
+  // markdown ni HTML, es la sintaxis propia de WhatsApp.
+  function whatsAppMessageFor(amount: number): string {
     const peopleCount = selected.size + (includeMe ? 1 : 0);
     return (
-      `Mensaje automático — reparto de "${title}" (${dateStr}). ` +
-      `Tu parte: ${formatMoney(amount, "EUR")}. Total: ${formatMoney(total, "EUR")} entre ${peopleCount} personas.`
+      `Mensaje automático — reparto de "${splitTitle()}" (${splitDateLabel()}). ` +
+      `*Tu parte: ${formatMoney(amount, "EUR")}*. Total: ${formatMoney(total, "EUR")} entre ${peopleCount} personas.`
+    );
+  }
+
+  // Solo tiene sentido un mensaje único (para una lista de difusión o
+  // reenviar a varios chats) cuando a todos les toca exactamente lo mismo:
+  // en "Cantidad fija", o con multiplicadores distintos en "Por igual", cada
+  // quien debe ver su propio importe.
+  const canBroadcast =
+    splitMode === "equal" &&
+    notifyEntries.length > 1 &&
+    notifyEntries.every((entry) => Math.abs(entry.amount - notifyEntries[0].amount) < 0.005);
+
+  function whatsAppBroadcastMessage(): string {
+    const peopleCount = selected.size + (includeMe ? 1 : 0);
+    const amount = notifyEntries[0]?.amount ?? 0;
+    return (
+      `Mensaje automático — reparto de "${splitTitle()}" (${splitDateLabel()}). ` +
+      `*Cada uno paga: ${formatMoney(amount, "EUR")}*. Total: ${formatMoney(total, "EUR")} entre ${peopleCount} personas.`
     );
   }
 
@@ -161,6 +189,28 @@ export default function TransactionDetail({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveDebtorPhone(debtorId: string) {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<Debtor>(`/api/debtors/${debtorId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ phone: phoneDraft.trim() || null }),
+      });
+      setNotifyEntries((prev) => prev.map((entry) => (entry.debtor.id === debtorId ? { ...entry, debtor: updated } : entry)));
+      setEditingPhoneFor(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar el teléfono");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function pickPhoneForEditing() {
+    const picked = await pickPhoneContact();
+    if (picked?.phone) setPhoneDraft(picked.phone);
   }
 
   return (
@@ -390,35 +440,95 @@ export default function TransactionDetail({
         {mode === "notify" && (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted">
-              Reparto guardado. Abre WhatsApp con el mensaje ya escrito para cada persona — tú decides cuándo
-              pulsar enviar.
+              Reparto guardado. Abre WhatsApp con el mensaje ya escrito — tú decides cuándo pulsar enviar.
             </p>
+
+            {canBroadcast && (
+              <a
+                href={buildWhatsAppLink("", whatsAppBroadcastMessage())}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] px-4 py-3 text-sm font-medium text-white shadow-[var(--shadow-card)]"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Mensaje de difusión (elige a quién enviárselo en WhatsApp)
+              </a>
+            )}
+
             <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
               {notifyEntries.map(({ debtor, amount }, index) => (
                 <li
                   key={debtor.id}
-                  className={`flex items-center gap-3 px-4 py-3 ${index > 0 ? "border-t border-surface-border" : ""}`}
+                  className={`px-4 py-3 ${index > 0 ? "border-t border-surface-border" : ""}`}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{debtor.name}</p>
-                    <p className="text-xs text-muted">{formatMoney(amount, "EUR")}</p>
-                  </div>
-                  {debtor.phone ? (
-                    <a
-                      href={buildWhatsAppLink(debtor.phone, whatsAppMessageFor(amount))}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-2 text-xs font-medium text-white"
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      WhatsApp
-                    </a>
+                  {editingPhoneFor === debtor.id ? (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm font-medium">{debtor.name}</p>
+                      {isContactPickerSupported() && (
+                        <button
+                          onClick={pickPhoneForEditing}
+                          className="flex items-center justify-center gap-1.5 rounded-xl border border-surface-border bg-background px-3 py-2 text-xs font-medium text-brand"
+                        >
+                          <Contact className="h-3.5 w-3.5" />
+                          Elegir de contactos
+                        </button>
+                      )}
+                      <input
+                        autoFocus
+                        value={phoneDraft}
+                        onChange={(e) => setPhoneDraft(e.target.value)}
+                        placeholder="612 345 678"
+                        className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => saveDebtorPhone(debtor.id)}
+                          disabled={saving}
+                          className="flex-1 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-brand-contrast disabled:opacity-50"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => setEditingPhoneFor(null)}
+                          className="rounded-xl border border-surface-border px-3 py-2 text-xs font-medium"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <span className="shrink-0 text-xs text-muted-soft">Sin teléfono</span>
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{debtor.name}</p>
+                        <p className="text-xs text-muted">{formatMoney(amount, "EUR")}</p>
+                      </div>
+                      {debtor.phone ? (
+                        <a
+                          href={buildWhatsAppLink(debtor.phone, whatsAppMessageFor(amount))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-2 text-xs font-medium text-white"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          WhatsApp
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setPhoneDraft("");
+                            setEditingPhoneFor(debtor.id);
+                          }}
+                          className="shrink-0 text-xs font-medium text-brand"
+                        >
+                          + Añadir teléfono
+                        </button>
+                      )}
+                    </div>
                   )}
                 </li>
               ))}
             </ul>
+            {error && <p className="text-sm text-danger">{error}</p>}
             <button
               onClick={onClose}
               className="rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-contrast"
