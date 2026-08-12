@@ -10,7 +10,12 @@ from .. import models, schemas
 from ..deps import CurrentUser, get_current_user, get_db_session
 from ..services.enable_banking import EnableBankingClient, EnableBankingError
 from ..services.push import maybe_send_weekly_digest, notify_new_alerts
-from ..services.sync import learn_rule_from_categorization, recategorize_uncategorized, sync_transactions
+from ..services.sync import (
+    describe_enable_banking_error,
+    learn_rule_from_categorization,
+    recategorize_uncategorized,
+    sync_transactions,
+)
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -192,7 +197,11 @@ async def sync_all(
             auto_categorized.extend(await sync_transactions(db, account, client))
             results.append(schemas.SyncResult(account_uid=account.account_uid, ok=True))
         except EnableBankingError as error:
-            results.append(schemas.SyncResult(account_uid=account.account_uid, ok=False, error=str(error)))
+            results.append(
+                schemas.SyncResult(
+                    account_uid=account.account_uid, ok=False, error=describe_enable_banking_error(error)
+                )
+            )
 
     notify_new_alerts(db, user.id)
     maybe_send_weekly_digest(db, user.id)

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import SessionLocal, engine
+from app.services.enable_banking import EnableBankingError
 from app.services.sync import learn_rule_from_categorization, link_accounts, sync_transactions
 
 
@@ -158,6 +159,30 @@ async def test_sync_deduplicates_within_the_same_batch(db, account):
 
     count = db.query(models.Transaction).filter_by(entry_reference="tx-batch-dup").count()
     assert count == 1
+
+
+class FailingClient:
+    def __init__(self, status: int):
+        self._status = status
+
+    async def fetch_all_transactions(self, account_uid, date_from=None, date_to=None):
+        raise EnableBankingError(self._status, "boom")
+
+
+async def test_sync_transactions_persists_a_friendly_reauth_message_on_401(db, account):
+    with pytest.raises(EnableBankingError):
+        await sync_transactions(db, account, FailingClient(401))
+
+    assert account.last_sync_issue == "El banco pidió reautorizar el acceso — vuelve a conectarlo"
+
+
+async def test_sync_transactions_clears_the_stale_issue_after_a_successful_sync(db, account):
+    account.last_sync_issue = "El banco pidió reautorizar el acceso — vuelve a conectarlo"
+    db.commit()
+
+    await sync_transactions(db, account, FakeClient([_eb_tx("tx-recovered")]))
+
+    assert account.last_sync_issue is None
 
 
 def test_link_accounts_assigns_a_color_based_on_the_real_bank(db):

@@ -90,7 +90,12 @@ function MovimientosContent() {
       const response = await apiFetch<SyncResponse>("/api/transactions/sync", { method: "POST" });
       const failed = response.results.filter((r) => !r.ok);
       if (failed.length > 0) {
-        setError(`No se pudo sincronizar ${failed.length} cuenta(s).`);
+        const reasons = [...new Set(failed.map((r) => r.error).filter(Boolean))];
+        setError(
+          reasons.length > 0
+            ? reasons.join(" · ")
+            : `No se pudo sincronizar ${failed.length} cuenta(s).`
+        );
       }
       if (response.auto_categorized.length > 0) {
         setAutoCategorized(response.auto_categorized);

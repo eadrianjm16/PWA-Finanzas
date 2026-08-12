@@ -69,10 +69,14 @@ def link_accounts(db: Session, session_data: dict, aspsp: dict, user_id: str) ->
     return connection
 
 
-def _balance_error_message(error: EnableBankingError) -> str:
+def describe_enable_banking_error(error: EnableBankingError) -> str:
     if error.status == 401:
         return "El banco pidió reautorizar el acceso — vuelve a conectarlo"
-    return "No se pudo actualizar el saldo"
+    if error.status == 429:
+        return "El banco está limitando las peticiones — inténtalo de nuevo en unos minutos"
+    if error.status >= 500:
+        return "El banco no está respondiendo ahora mismo — inténtalo más tarde"
+    return "No se pudo sincronizar con el banco"
 
 
 async def refresh_balance(db: Session, account: models.LinkedAccount, client: EnableBankingClient) -> None:
@@ -90,7 +94,7 @@ async def refresh_balance(db: Session, account: models.LinkedAccount, client: En
         account.last_sync_issue = None
         db.commit()
     except EnableBankingError as error:
-        account.last_sync_issue = _balance_error_message(error)
+        account.last_sync_issue = describe_enable_banking_error(error)
         db.commit()
         raise
 
@@ -182,7 +186,19 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
     avisar de "N movimientos categorizados automaticamente".
     """
     date_from = account.last_synced_at.date() if account.last_synced_at else (date.today() - BACKFILL_WINDOW)
-    raw_transactions = await client.fetch_all_transactions(account.account_uid, date_from=date_from, date_to=date.today())
+    try:
+        raw_transactions = await client.fetch_all_transactions(
+            account.account_uid, date_from=date_from, date_to=date.today()
+        )
+    except EnableBankingError as error:
+        # Antes este error solo se mostraba como un banner generico y
+        # desaparecia al navegar; ahora tambien queda guardado en la cuenta
+        # (visible en Saldo) con un mensaje que dice que hacer, igual que
+        # refresh_balance - el caso mas comun con banco real es que el
+        # consentimiento PSD2 caducó (401) y hay que reconectar el banco.
+        account.last_sync_issue = describe_enable_banking_error(error)
+        db.commit()
+        raise
 
     categories = _categories_by_name(db, account.user_id)
     rules = db.query(models.CategorizationRule).filter_by(user_id=account.user_id).all()
@@ -256,6 +272,7 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
         db.execute(insert(models.Transaction).values(chunk))
 
     account.last_synced_at = datetime.now(timezone.utc)
+    account.last_sync_issue = None
     db.commit()
     return rule_applied
 
