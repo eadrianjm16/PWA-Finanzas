@@ -119,3 +119,22 @@ código:
    puede registrarse).
 2. Comparte ese código solo con quien quieras que se registre.
 3. Para dejar de exigirlo, borra la variable (o vacíala) en Render.
+
+## 11. Notificaciones push (opcional, Web Push)
+
+Sin esto, las alertas solo se ven dentro de la app (pestaña Alertas). Con
+`VAPID_PRIVATE_KEY` configurada, tras cada sincronización de movimientos el
+backend manda un popup del sistema por cada alerta nueva a los dispositivos
+suscritos.
+
+1. En Render → Environment, añade estas tres variables:
+   - `VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+   - `VAPID_ADMIN_EMAIL` (un email de contacto, va en la cabecera de las
+     peticiones push — usa el email del propietario del proyecto)
+2. No hace falta nada más en Vercel: el frontend pide la clave pública al
+   backend en tiempo de ejecución (`GET /api/push/vapid-public-key`).
+3. Cada usuario activa las notificaciones desde Alertas → "Activar
+   notificaciones" (pide permiso al navegador y se suscribe).
+4. Para desactivarlo del todo, borra `VAPID_PRIVATE_KEY` en Render — el envío
+   queda desactivado sin tocar código (igual que Resend/Sentry).

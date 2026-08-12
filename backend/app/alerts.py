@@ -126,4 +126,9 @@ def bank_fee_alerts(db: Session, user_id: str) -> list[dict]:
 
 
 def evaluate_alerts(db: Session, user_id: str) -> list[dict]:
-    return budget_threshold_alerts(db, user_id) + duplicate_charge_alerts(db, user_id) + bank_fee_alerts(db, user_id)
+    all_alerts = budget_threshold_alerts(db, user_id) + duplicate_charge_alerts(db, user_id) + bank_fee_alerts(db, user_id)
+    dismissed = {
+        row[0]
+        for row in db.query(models.AlertDismissal.alert_id).filter_by(user_id=user_id).all()
+    }
+    return [alert for alert in all_alerts if alert["id"] not in dismissed]

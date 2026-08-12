@@ -35,3 +35,31 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(request))
   );
 });
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  const payload = event.data.json();
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: "/icons/icon.svg",
+      badge: "/icons/icon.svg",
+      data: { alertId: payload.alert_id },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          client.navigate("/alertas");
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow("/alertas");
+    })
+  );
+});

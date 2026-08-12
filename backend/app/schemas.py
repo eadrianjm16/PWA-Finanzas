@@ -219,6 +219,25 @@ class AlertOut(BaseModel):
     subtitle: str
 
 
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscribeRequest(BaseModel):
+    endpoint: str
+    keys: PushSubscriptionKeys
+
+
+class PushUnsubscribeRequest(BaseModel):
+    endpoint: str
+
+
+class VapidPublicKeyOut(BaseModel):
+    public_key: str
+    enabled: bool
+
+
 class MonthTotals(BaseModel):
     month: str  # "YYYY-MM"
     income: float

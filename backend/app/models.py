@@ -107,6 +107,43 @@ class Transaction(Base):
         return len(self.debt_entries) > 0
 
 
+class AlertDismissal(Base):
+    """Marca que un usuario ya vio y descartó una alerta concreta. Las alertas
+    no se guardan (se recalculan al vuelo, ver alerts.py); esto solo recuerda
+    cuales de esos ids ya se descartaron para no volver a mostrarlas."""
+
+    __tablename__ = "alert_dismissals"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    alert_id: Mapped[str] = mapped_column(String, primary_key=True)
+    dismissed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class PushSubscription(Base):
+    """Suscripcion Web Push del navegador de un usuario (puede tener varias:
+    movil, escritorio, etc)."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    endpoint: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    p256dh: Mapped[str] = mapped_column(String, nullable=False)
+    auth: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class NotifiedAlert(Base):
+    """Que alertas ya dispararon un push a un usuario, para no reenviar la
+    misma notificacion en cada sync mientras la alerta siga activa."""
+
+    __tablename__ = "notified_alerts"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    alert_id: Mapped[str] = mapped_column(String, primary_key=True)
+    notified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Budget(Base):
     """Limite mensual por categoria. A diferencia del modelo iOS (que unia por
     categoryName), aqui se referencia la categoria por FK: mismo dato, join

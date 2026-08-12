@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # Codigo de invitacion para registrarse (opcional). Vacio = registro abierto.
     registration_invite_code: str = ""
 
+    # Web Push (notificaciones tipo popup para alertas). Vacio = desactivado.
+    # VAPID_PUBLIC_KEY se sirve tal cual al frontend; VAPID_PRIVATE_KEY es secreta.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_admin_email: str = "adrian.jibmac@gmail.com"
+
     @property
     def eb_redirect_url(self) -> str:
         return f"{self.backend_public_url.rstrip('/')}/api/banks/callback"
