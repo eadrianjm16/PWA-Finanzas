@@ -1,6 +1,7 @@
 """Alertas calculadas al vuelo a partir de movimientos y presupuestos, sin
 persistencia ni push real. Puerto de AlertsEngine.swift."""
 
+from calendar import monthrange
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -125,8 +126,52 @@ def bank_fee_alerts(db: Session, user_id: str) -> list[dict]:
     ]
 
 
+def fixed_expense_due_alerts(db: Session, user_id: str) -> list[dict]:
+    """Un Gasto Fijo (ver routers/fixed_expenses.py) sin marcar como pagado
+    una vez llegado (o pasado) su dia de vencimiento este mes. Con due_day=31
+    en un mes mas corto, se considera vencido el ultimo dia real del mes -si
+    no, nunca llegaria a dispararse en febrero."""
+    expenses = db.query(models.FixedExpense).filter_by(user_id=user_id).all()
+    if not expenses:
+        return []
+
+    today = datetime.now(timezone.utc).date()
+    month_key = today.strftime("%Y-%m")
+    last_day_this_month = monthrange(today.year, today.month)[1]
+
+    checked_ids = {
+        row[0]
+        for row in db.query(models.FixedExpenseCheck.fixed_expense_id)
+        .filter(models.FixedExpenseCheck.month_key == month_key)
+        .filter(models.FixedExpenseCheck.fixed_expense_id.in_([e.id for e in expenses]))
+        .all()
+    }
+
+    alerts = []
+    for expense in expenses:
+        if expense.id in checked_ids:
+            continue
+        effective_due_day = min(expense.due_day, last_day_this_month)
+        if today.day < effective_due_day:
+            continue
+        alerts.append(
+            {
+                "id": f"fixedexpense-{expense.id}-{month_key}",
+                "icon": "fixed-expense-due",
+                "title": f"Gasto fijo pendiente: {expense.name}",
+                "subtitle": f"{float(expense.amount):.2f} EUR - vencía el día {expense.due_day}",
+            }
+        )
+    return alerts
+
+
 def evaluate_alerts(db: Session, user_id: str) -> list[dict]:
-    all_alerts = budget_threshold_alerts(db, user_id) + duplicate_charge_alerts(db, user_id) + bank_fee_alerts(db, user_id)
+    all_alerts = (
+        budget_threshold_alerts(db, user_id)
+        + duplicate_charge_alerts(db, user_id)
+        + bank_fee_alerts(db, user_id)
+        + fixed_expense_due_alerts(db, user_id)
+    )
     dismissed = {
         row[0]
         for row in db.query(models.AlertDismissal.alert_id).filter_by(user_id=user_id).all()

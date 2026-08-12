@@ -1,9 +1,12 @@
+from calendar import monthrange
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import models
-from app.database import SessionLocal
+from app.alerts import fixed_expense_due_alerts
+from app.database import SessionLocal, engine
 from app.main import app
 from tests.conftest import auth_headers, register_user
 
@@ -73,6 +76,108 @@ def test_dismissing_an_alert_twice_does_not_error():
 
     assert first.status_code == 200
     assert second.status_code == 200
+
+
+def test_fixed_expense_due_today_or_earlier_alerts_when_unchecked():
+    models.Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    user = models.User(email="fixed-due-1@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    today = datetime.now(timezone.utc).date()
+    expense = models.FixedExpense(user_id=user.id, name="Alquiler", amount=800, due_day=today.day)
+    db.add(expense)
+    db.commit()
+
+    alerts = fixed_expense_due_alerts(db, user.id)
+    db.close()
+
+    assert len(alerts) == 1
+    assert "Alquiler" in alerts[0]["title"]
+
+
+def test_fixed_expense_not_yet_due_does_not_alert():
+    today = datetime.now(timezone.utc).date()
+    last_day = monthrange(today.year, today.month)[1]
+    if today.day >= last_day:
+        pytest.skip("no queda ningun dia futuro valido este mes de calendario real para probar esto")
+
+    models.Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    user = models.User(email="fixed-due-2@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    expense = models.FixedExpense(user_id=user.id, name="Seguro", amount=40, due_day=today.day + 1)
+    db.add(expense)
+    db.commit()
+
+    alerts = fixed_expense_due_alerts(db, user.id)
+    db.close()
+
+    assert alerts == []
+
+
+def test_fixed_expense_due_but_already_checked_does_not_alert():
+    models.Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    user = models.User(email="fixed-due-3@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    today = datetime.now(timezone.utc).date()
+    expense = models.FixedExpense(user_id=user.id, name="Gimnasio", amount=30, due_day=today.day)
+    db.add(expense)
+    db.flush()
+    db.add(models.FixedExpenseCheck(fixed_expense_id=expense.id, month_key=today.strftime("%Y-%m")))
+    db.commit()
+
+    alerts = fixed_expense_due_alerts(db, user.id)
+    db.close()
+
+    assert alerts == []
+
+
+def test_fixed_expense_due_day_beyond_month_length_uses_last_real_day():
+    # due_day=31 en un mes mas corto: se considera vencido en el ultimo dia
+    # real del mes, no nunca.
+    today = datetime.now(timezone.utc).date()
+    last_day = monthrange(today.year, today.month)[1]
+    if today.day < last_day:
+        pytest.skip("solo aplica el ultimo dia real del mes de calendario actual")
+
+    models.Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    user = models.User(email="fixed-due-4@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    expense = models.FixedExpense(user_id=user.id, name="Cuota anual", amount=15, due_day=31)
+    db.add(expense)
+    db.commit()
+
+    alerts = fixed_expense_due_alerts(db, user.id)
+    db.close()
+
+    assert len(alerts) == 1
+
+
+def test_fixed_expense_alert_shows_up_via_api_and_can_be_dismissed():
+    with TestClient(app) as client:
+        email, token = register_user(client)
+        me = client.get("/api/auth/me", headers=auth_headers(token)).json()
+
+        db = SessionLocal()
+        today = datetime.now(timezone.utc).date()
+        db.add(models.FixedExpense(user_id=me["id"], name="Internet", amount=35, due_day=today.day))
+        db.commit()
+        db.close()
+
+        alerts = client.get("/api/alerts", headers=auth_headers(token)).json()
+        fixed_alert = next(a for a in alerts if a["icon"] == "fixed-expense-due")
+
+        dismiss = client.delete(f"/api/alerts/{fixed_alert['id']}", headers=auth_headers(token))
+        after = client.get("/api/alerts", headers=auth_headers(token)).json()
+
+    assert dismiss.status_code == 200
+    assert all(a["icon"] != "fixed-expense-due" for a in after)
 
 
 def test_dismissing_an_alert_does_not_affect_other_users():
