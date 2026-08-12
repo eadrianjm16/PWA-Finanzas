@@ -73,7 +73,16 @@ def describe_enable_banking_error(error: EnableBankingError) -> str:
     if error.status == 401:
         return "El banco pidió reautorizar el acceso — vuelve a conectarlo"
     if error.status == 429:
-        return "El banco está limitando las peticiones — inténtalo de nuevo en unos minutos"
+        # Muchos bancos (regulacion PSD2/Berlin Group) limitan las llamadas de
+        # solo-consulta a un puñado al dia por cuenta fuera de una sesion con
+        # el usuario presente - no es necesariamente cuestion de minutos,
+        # puede tardar horas o hasta el dia siguiente en resetearse. Si el
+        # banco manda cuanto hay que esperar (Retry-After), se lo decimos tal
+        # cual en vez de adivinar "unos minutos".
+        if error.retry_after_seconds:
+            minutes = max(1, error.retry_after_seconds // 60)
+            return f"El banco está limitando las peticiones — inténtalo de nuevo en {minutes} min"
+        return "El banco está limitando las peticiones — algunos bancos solo dejan sincronizar unas pocas veces al día, prueba más tarde"
     if error.status >= 500:
         return "El banco no está respondiendo ahora mismo — inténtalo más tarde"
     return "No se pudo sincronizar con el banco"

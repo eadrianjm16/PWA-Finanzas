@@ -14,9 +14,10 @@ BALANCE_PRIORITY = ["XPCD", "ITAV", "CLAV", "OPAV", "CLBD"]
 
 
 class EnableBankingError(Exception):
-    def __init__(self, status: int, body: str):
+    def __init__(self, status: int, body: str, retry_after_seconds: int | None = None):
         self.status = status
         self.body = body
+        self.retry_after_seconds = retry_after_seconds
         super().__init__(f"Enable Banking error {status}: {body}")
 
 
@@ -49,7 +50,11 @@ class EnableBankingClient:
         except httpx.HTTPError as error:
             raise EnableBankingError(502, f"No se pudo contactar con Enable Banking: {error}") from error
         if not (200 <= response.status_code < 300):
-            raise EnableBankingError(response.status_code, response.text)
+            retry_after = None
+            raw_retry_after = response.headers.get("Retry-After")
+            if raw_retry_after and raw_retry_after.isdigit():
+                retry_after = int(raw_retry_after)
+            raise EnableBankingError(response.status_code, response.text, retry_after_seconds=retry_after)
         return response.json()
 
     async def list_aspsps(self, country: str | None = None) -> list[dict]:

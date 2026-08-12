@@ -12,6 +12,8 @@ import { apiFetch, ApiError, downloadFile } from "@/lib/api";
 import { dayKey, formatDay, formatMoney, formatMonthLabel, shiftMonth } from "@/lib/format";
 import type { AutoCategorizedItem, SyncResponse, Transaction } from "@/lib/types";
 
+const SYNC_COOLDOWN_MS = 60_000;
+
 function monthBounds(year: number, month: number): { dateFrom: string; dateTo: string } {
   const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const to = new Date(Date.UTC(year, month, 0, 23, 59, 59));
@@ -48,6 +50,7 @@ function MovimientosContent() {
   );
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [coolingDown, setCoolingDown] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Transaction | null>(null);
 
@@ -83,6 +86,7 @@ function MovimientosContent() {
   }
 
   async function sync() {
+    if (syncing || coolingDown) return;
     setSyncing(true);
     setError(null);
     setAutoCategorized(null);
@@ -105,6 +109,12 @@ function MovimientosContent() {
       setError(err instanceof ApiError ? err.message : "No se pudo sincronizar");
     } finally {
       setSyncing(false);
+      // Algunos bancos (Santander incluido) solo permiten unas pocas
+      // consultas al día por PSD2 fuera de una sesión con el usuario
+      // presente: este margen evita que un usuario impaciente pulsando
+      // "Sincronizar" varias veces seguidas agote esa cuota sin querer.
+      setCoolingDown(true);
+      setTimeout(() => setCoolingDown(false), SYNC_COOLDOWN_MS);
     }
   }
 
@@ -148,11 +158,11 @@ function MovimientosContent() {
           {!selectMode && (
             <button
               onClick={sync}
-              disabled={syncing}
+              disabled={syncing || coolingDown}
               className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast shadow-[var(--shadow-card)] transition active:scale-95 disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} strokeWidth={2.5} />
-              {syncing ? "Sincronizando" : "Sincronizar"}
+              {syncing ? "Sincronizando" : coolingDown ? "Espera un momento" : "Sincronizar"}
             </button>
           )}
         </div>
