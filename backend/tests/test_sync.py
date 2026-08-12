@@ -46,7 +46,9 @@ class FakeClient:
         return self._transactions
 
 
-def _eb_tx(entry_reference: str, amount: str = "-20.00", remittance: str = "MERCADONA MADRID") -> dict:
+def _eb_tx(
+    entry_reference: str, amount: str = "-20.00", remittance: str = "MERCADONA MADRID", status: str = "BOOK"
+) -> dict:
     return {
         "entry_reference": entry_reference,
         "credit_debit_indicator": "DBIT",
@@ -54,6 +56,7 @@ def _eb_tx(entry_reference: str, amount: str = "-20.00", remittance: str = "MERC
         "booking_date": "2026-03-05",
         "remittance_information": [remittance],
         "merchant_category_code": None,
+        "status": status,
     }
 
 
@@ -78,6 +81,26 @@ async def test_sync_is_idempotent_and_does_not_duplicate(db, account):
 
     count = db.query(models.Transaction).filter_by(account_uid=account.account_uid, entry_reference="tx-dup").count()
     assert count == 1
+
+
+async def test_sync_replaces_pending_transaction_once_booked(db, account):
+    # El banco da una referencia provisional mientras el pago esta pendiente
+    # (PDNG) y otra distinta cuando se liquida (BOOK): mismo movimiento real,
+    # dos entry_reference. No deberia quedar como dos filas.
+    pending = _eb_tx("prov-123", amount="-33.29", remittance="COMPRA BlaBlaCar, Paris", status="PDNG")
+    booked = _eb_tx("final-456", amount="-33.29", remittance="COMPRA BlaBlaCar, Paris", status="BOOK")
+
+    await sync_transactions(db, account, FakeClient([pending]))
+    await sync_transactions(db, account, FakeClient([pending, booked]))
+
+    rows = (
+        db.query(models.Transaction)
+        .filter_by(account_uid=account.account_uid, remittance_information="COMPRA BlaBlaCar, Paris")
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].entry_reference == "final-456"
+    assert rows[0].status == "BOOK"
 
 
 async def test_sync_deduplicates_within_the_same_batch(db, account):

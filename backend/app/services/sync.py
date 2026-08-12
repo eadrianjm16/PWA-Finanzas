@@ -113,6 +113,22 @@ def _categories_by_name(db: Session, user_id: str) -> dict[str, models.Category]
     return {c.name: c for c in db.query(models.Category).filter_by(user_id=user_id).all()}
 
 
+def _amount_key(value) -> str:
+    return f"{float(value):.2f}"
+
+
+def _pending_by_content(db: Session, account_uid: str) -> dict[tuple, models.Transaction]:
+    """Movimientos aun pendientes (PDNG) de esta cuenta, indexados por su
+    contenido. El banco asigna una referencia provisional a un pago pendiente
+    y otra distinta cuando se liquida (BOOK) - sin esto, sync_transactions no
+    tiene forma de saber que son el mismo movimiento y lo duplicaria."""
+    rows = db.query(models.Transaction).filter_by(account_uid=account_uid, status="PDNG").all()
+    return {
+        (_amount_key(row.amount), row.currency, row.remittance_information, row.credit_debit_indicator): row
+        for row in rows
+    }
+
+
 INSERT_CHUNK_SIZE = 200
 
 
@@ -138,6 +154,7 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
         .filter_by(account_uid=account.account_uid)
         .all()
     }
+    pending_by_content = _pending_by_content(db, account.account_uid)
 
     new_rows: list[dict] = []
     for eb_tx in raw_transactions:
@@ -148,9 +165,19 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
 
         indicator = eb_tx["credit_debit_indicator"]
         amount = eb_tx["transaction_amount"]["amount"]
+        currency = eb_tx["transaction_amount"]["currency"]
         remittance = "\n".join(eb_tx.get("remittance_information") or [])
+        status = eb_tx.get("status")
         counterparty = (eb_tx.get("debtor") if indicator == "CRDT" else eb_tx.get("creditor")) or {}
         mcc = eb_tx.get("merchant_category_code")
+
+        if status != "PDNG":
+            stale = pending_by_content.pop((_amount_key(amount), currency, remittance, indicator), None)
+            if stale is not None:
+                db.query(models.DebtEntry).filter_by(transaction_entry_reference=stale.entry_reference).update(
+                    {"transaction_entry_reference": None}
+                )
+                db.delete(stale)
 
         category_name = suggest_category(mcc=mcc, remittance_information=remittance, credit_debit_indicator=indicator)
         category = categories.get(category_name)
@@ -161,14 +188,14 @@ async def sync_transactions(db: Session, account: models.LinkedAccount, client: 
                 account_uid=account.account_uid,
                 category_id=category.id if category else None,
                 amount=amount,
-                currency=eb_tx["transaction_amount"]["currency"],
+                currency=currency,
                 credit_debit_indicator=indicator,
                 booking_date=_parse_date(eb_tx.get("booking_date")) or datetime.now(timezone.utc),
                 value_date=_parse_date(eb_tx.get("value_date")),
                 remittance_information=remittance,
                 counterparty_name=counterparty.get("name"),
                 merchant_category_code=mcc,
-                status=eb_tx.get("status"),
+                status=status,
             )
         )
 
