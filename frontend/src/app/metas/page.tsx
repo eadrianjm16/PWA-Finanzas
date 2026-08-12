@@ -2,17 +2,28 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Plus, Target, Trash2 } from "lucide-react";
+import { Link2, Plus, Target, Trash2, Unlink } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
-import type { SavingsGoal } from "@/lib/types";
+import type { LinkedAccount, SavingsGoal } from "@/lib/types";
 
-function GoalCard({ goal, onChanged }: { goal: SavingsGoal; onChanged: () => Promise<unknown> }) {
+function GoalCard({
+  goal,
+  accounts,
+  onChanged,
+}: {
+  goal: SavingsGoal;
+  accounts: LinkedAccount[];
+  onChanged: () => Promise<unknown>;
+}) {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [accountToLink, setAccountToLink] = useState("");
   const progress = goal.target_amount > 0 ? Math.min(1, goal.current_amount / goal.target_amount) : 0;
+  const isLinked = goal.linked_account_uid != null;
 
   async function contribute(sign: 1 | -1) {
     const value = Number(amount);
@@ -24,6 +35,21 @@ function GoalCard({ goal, onChanged }: { goal: SavingsGoal; onChanged: () => Pro
         body: JSON.stringify({ amount: value * sign }),
       });
       setAmount("");
+      await onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function link(accountUid: string | null) {
+    setBusy(true);
+    try {
+      await apiFetch(`/api/savings-goals/${goal.id}/link`, {
+        method: "PUT",
+        body: JSON.stringify({ account_uid: accountUid }),
+      });
+      setLinking(false);
+      setAccountToLink("");
       await onChanged();
     } finally {
       setBusy(false);
@@ -47,6 +73,7 @@ function GoalCard({ goal, onChanged }: { goal: SavingsGoal; onChanged: () => Pro
             <p className="text-sm font-medium">{goal.name}</p>
             <p className="text-xs text-muted">
               {formatMoney(goal.current_amount, "EUR")} de {formatMoney(goal.target_amount, "EUR")}
+              {isLinked && ` · ${goal.linked_account_name}`}
             </p>
           </div>
         </div>
@@ -62,39 +89,89 @@ function GoalCard({ goal, onChanged }: { goal: SavingsGoal; onChanged: () => Pro
         />
       </div>
 
-      <div className="flex gap-2">
-        <input
-          type="number"
-          inputMode="decimal"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Importe"
-          className="min-w-0 flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
-        />
+      {isLinked ? (
         <button
-          onClick={() => contribute(1)}
+          onClick={() => link(null)}
           disabled={busy}
-          className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
+          className="flex items-center gap-1.5 text-xs font-medium text-muted disabled:opacity-50"
         >
-          Añadir
+          <Unlink className="h-3.5 w-3.5" />
+          Desvincular de {goal.linked_account_name}
         </button>
-        <button
-          onClick={() => contribute(-1)}
-          disabled={busy}
-          className="rounded-xl border border-surface-border px-3 py-2 text-sm font-medium disabled:opacity-50"
-        >
-          Retirar
-        </button>
-      </div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Importe"
+              className="min-w-0 flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            />
+            <button
+              onClick={() => contribute(1)}
+              disabled={busy}
+              className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
+            >
+              Añadir
+            </button>
+            <button
+              onClick={() => contribute(-1)}
+              disabled={busy}
+              className="rounded-xl border border-surface-border px-3 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              Retirar
+            </button>
+          </div>
+
+          {accounts.length > 0 && !linking && (
+            <button
+              onClick={() => setLinking(true)}
+              className="mt-2 flex items-center gap-1.5 text-xs font-medium text-brand"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Vincular a una cuenta real
+            </button>
+          )}
+          {linking && (
+            <div className="mt-2 flex gap-2">
+              <select
+                value={accountToLink}
+                onChange={(e) => setAccountToLink(e.target.value)}
+                className="min-w-0 flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              >
+                <option value="">Elige una cuenta…</option>
+                {accounts.map((a) => (
+                  <option key={a.account_uid} value={a.account_uid}>
+                    {a.display_name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => accountToLink && link(accountToLink)}
+                disabled={busy || !accountToLink}
+                className="rounded-xl bg-brand px-3 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
+              >
+                Vincular
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </li>
   );
 }
 
 function MetasContent() {
   const { data: goals, mutate } = useSWR<SavingsGoal[]>("/api/savings-goals", apiFetch);
+  const { data: connections } = useSWR<{ accounts: LinkedAccount[] }[]>("/api/banks/connections", apiFetch);
+  const accounts = (connections ?? []).flatMap((c) => c.accounts);
+
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
+  const [linkedAccountUid, setLinkedAccountUid] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -107,10 +184,15 @@ function MetasContent() {
     try {
       await apiFetch("/api/savings-goals", {
         method: "POST",
-        body: JSON.stringify({ name: trimmed, target_amount: targetValue }),
+        body: JSON.stringify({
+          name: trimmed,
+          target_amount: targetValue,
+          linked_account_uid: linkedAccountUid || null,
+        }),
       });
       setName("");
       setTarget("");
+      setLinkedAccountUid("");
       setCreating(false);
       await mutate();
     } catch (err) {
@@ -156,6 +238,20 @@ function MetasContent() {
             placeholder="Objetivo en €"
             className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
           />
+          {accounts.length > 0 && (
+            <select
+              value={linkedAccountUid}
+              onChange={(e) => setLinkedAccountUid(e.target.value)}
+              className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+            >
+              <option value="">Sin vincular (manual)</option>
+              {accounts.map((a) => (
+                <option key={a.account_uid} value={a.account_uid}>
+                  Vincular a {a.display_name}
+                </option>
+              ))}
+            </select>
+          )}
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex gap-2">
             <button
@@ -177,7 +273,7 @@ function MetasContent() {
 
       <ul className="flex flex-col gap-3">
         {goals?.map((goal) => (
-          <GoalCard key={goal.id} goal={goal} onChanged={mutate} />
+          <GoalCard key={goal.id} goal={goal} accounts={accounts} onChanged={mutate} />
         ))}
       </ul>
     </main>

@@ -166,6 +166,8 @@ export interface SavingsGoal {
   name: string;
   target_amount: number;
   current_amount: number;
+  linked_account_uid: string | null;
+  linked_account_name: string | null;
   created_at: string;
 }
 

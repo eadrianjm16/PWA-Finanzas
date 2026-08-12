@@ -293,22 +293,27 @@ class CategorizationRuleCreateRequest(BaseModel):
 
 
 class SavingsGoalOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: str
     name: str
     target_amount: float
     current_amount: float
+    linked_account_uid: str | None
+    linked_account_name: str | None
     created_at: datetime
 
 
 class SavingsGoalCreateRequest(BaseModel):
     name: str
     target_amount: float
+    linked_account_uid: str | None = None
 
 
 class SavingsGoalContributeRequest(BaseModel):
     amount: float  # positivo suma, negativo resta
+
+
+class SavingsGoalLinkRequest(BaseModel):
+    account_uid: str | None  # null = desvincular, vuelve a ser manual
 
 
 class FixedExpenseOut(BaseModel):

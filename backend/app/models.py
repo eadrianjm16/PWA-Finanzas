@@ -188,8 +188,11 @@ class CategorizationRule(Base):
 
 
 class SavingsGoal(Base):
-    """Meta de ahorro manual: el usuario actualiza current_amount el mismo
-    (no se deriva de movimientos bancarios)."""
+    """Meta de ahorro. Por defecto es manual (el usuario actualiza
+    current_amount el mismo). Si se vincula a una cuenta real
+    (linked_account_uid), el progreso pasa a ser el saldo de esa cuenta -
+    pensado para una cuenta de ahorro dedicada, donde el saldo entero
+    representa el progreso, no un delta desde que se vinculo."""
 
     __tablename__ = "savings_goals"
 
@@ -198,7 +201,10 @@ class SavingsGoal(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     target_amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
     current_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    linked_account_uid: Mapped[str | None] = mapped_column(ForeignKey("linked_accounts.account_uid"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    linked_account: Mapped["LinkedAccount | None"] = relationship()
 
 
 class WeeklyDigestLog(Base):
