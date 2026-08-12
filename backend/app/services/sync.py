@@ -326,3 +326,27 @@ def recategorize_uncategorized(db: Session, user_id: str) -> int:
         updated += 1
     db.commit()
     return updated
+
+
+def apply_rules_to_all_matching(db: Session, user_id: str) -> int:
+    """A diferencia de recategorize_uncategorized, esta SI puede pisar
+    movimientos que el usuario ya categorizo a mano - pero solo cuando una
+    regla explicita coincide (nunca por la sugerencia automatica): es una
+    accion aparte que el usuario dispara a proposito cuando quiere que sus
+    reglas manden sobre todo el historico, no algo que pase por defecto."""
+    transactions = (
+        db.query(models.Transaction).join(models.LinkedAccount).filter(models.LinkedAccount.user_id == user_id).all()
+    )
+    rules = db.query(models.CategorizationRule).filter_by(user_id=user_id).all()
+    if not rules:
+        return 0
+
+    updated = 0
+    for tx in transactions:
+        rule_category_id = _matching_rule_category_id(rules, tx.remittance_information or tx.counterparty_name or "")
+        if rule_category_id is None or tx.category_id == rule_category_id:
+            continue
+        tx.category_id = rule_category_id
+        updated += 1
+    db.commit()
+    return updated

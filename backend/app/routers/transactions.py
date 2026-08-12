@@ -11,6 +11,7 @@ from ..deps import CurrentUser, get_current_user, get_db_session
 from ..services.enable_banking import EnableBankingClient, EnableBankingError
 from ..services.push import maybe_send_weekly_digest, notify_new_alerts
 from ..services.sync import (
+    apply_rules_to_all_matching,
     describe_enable_banking_error,
     learn_rule_from_categorization,
     recategorize_uncategorized,
@@ -213,6 +214,13 @@ def recategorize(
     db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
 ) -> schemas.RecategorizeResult:
     return schemas.RecategorizeResult(updated_count=recategorize_uncategorized(db, user.id))
+
+
+@router.post("/apply-rules", response_model=schemas.RecategorizeResult)
+def apply_rules(
+    db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
+) -> schemas.RecategorizeResult:
+    return schemas.RecategorizeResult(updated_count=apply_rules_to_all_matching(db, user.id))
 
 
 @router.post("/{entry_reference}/split", response_model=schemas.TransactionOut)

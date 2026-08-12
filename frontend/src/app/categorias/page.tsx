@@ -138,6 +138,7 @@ function CategoriasContent() {
   const [notice, setNotice] = useState<string | null>(null);
   const [editorTarget, setEditorTarget] = useState<Category | "new" | null>(null);
   const [recalculating, setRecalculating] = useState(false);
+  const [applyingRules, setApplyingRules] = useState(false);
 
   async function saveCategory(name: string, systemIconName: string) {
     if (editorTarget === "new") {
@@ -196,6 +197,29 @@ function CategoriasContent() {
       setError(err instanceof ApiError ? err.message : "No se pudo recalcular");
     } finally {
       setRecalculating(false);
+    }
+  }
+
+  async function applyRulesToAll() {
+    if (
+      !window.confirm(
+        "Esto puede cambiar la categoría de movimientos que ya categorizaste a mano, si coinciden con alguna de tus reglas. ¿Continuar?"
+      )
+    ) {
+      return;
+    }
+    setApplyingRules(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const result = await apiFetch<{ updated_count: number }>("/api/transactions/apply-rules", {
+        method: "POST",
+      });
+      setNotice(`Se actualizaron ${result.updated_count} movimiento(s) según tus reglas.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudieron aplicar las reglas");
+    } finally {
+      setApplyingRules(false);
     }
   }
 
@@ -269,9 +293,22 @@ function CategoriasContent() {
         <RotateCw className={`h-4 w-4 ${recalculating ? "animate-spin" : ""}`} />
         {recalculating ? "Recalculando…" : "Recalcular categorías de movimientos existentes"}
       </button>
-      <p className="-mt-4 mb-6 px-1 text-xs text-muted">
+      <p className="-mt-4 mb-4 px-1 text-xs text-muted">
         Vuelve a categorizar automáticamente los movimientos que no hayas categorizado a mano (aplica también tus
         reglas).
+      </p>
+
+      <button
+        onClick={applyRulesToAll}
+        disabled={applyingRules}
+        className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-surface-border bg-surface px-4 py-3.5 text-sm font-medium text-foreground shadow-[var(--shadow-card)] transition disabled:opacity-50"
+      >
+        <RotateCw className={`h-4 w-4 ${applyingRules ? "animate-spin" : ""}`} />
+        {applyingRules ? "Aplicando…" : "Aplicar reglas a todo el histórico"}
+      </button>
+      <p className="-mt-4 mb-6 px-1 text-xs text-muted">
+        A diferencia del botón de arriba, esta sí puede cambiar movimientos que categorizaste a mano si coinciden con
+        una regla — úsalo cuando quieras que una regla mande sobre todo tu histórico, no solo lo nuevo.
       </p>
 
       <CategorizationRulesSection categories={categories} />
