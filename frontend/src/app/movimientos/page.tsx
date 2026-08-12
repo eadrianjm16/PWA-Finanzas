@@ -128,7 +128,7 @@ function MovimientosContent() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
+      <div className="mb-4 flex flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Movimientos</h1>
         <div className="flex items-center gap-2">
           <button
@@ -288,10 +288,16 @@ function MovimientosContent() {
                           {isChecked && <Check className="h-3 w-3" strokeWidth={3} />}
                         </span>
                       )}
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-hover">
+                      <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-hover">
                         <CategoryIcon
                           name={tx.category?.system_icon_name ?? "help-circle"}
                           className="h-[18px] w-[18px] text-muted"
+                        />
+                        <span
+                          className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface"
+                          style={{ backgroundColor: tx.account_color }}
+                          aria-hidden
+                          title="Cuenta de origen"
                         />
                       </span>
                       <div className="min-w-0 flex-1 pr-3">
