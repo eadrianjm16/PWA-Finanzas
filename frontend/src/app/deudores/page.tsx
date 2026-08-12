@@ -33,6 +33,7 @@ function initials(name: string): string {
 
 function DeudoresContent() {
   const { data: debtors, mutate } = useSWR<Debtor[]>("/api/debtors", apiFetch);
+  const totalBalance = (debtors ?? []).reduce((sum, d) => sum + d.balance, 0);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -111,7 +112,7 @@ function DeudoresContent() {
         </div>
       )}
 
-      <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
+      <ul className="mb-4 overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
         {debtors?.map((debtor, index) => (
           <li key={debtor.id} className={index > 0 ? "border-t border-surface-border" : ""}>
             <Link
@@ -140,6 +141,18 @@ function DeudoresContent() {
           </li>
         ))}
       </ul>
+
+      {debtors && debtors.length > 0 && (
+        <div className="flex items-center justify-between rounded-2xl border border-surface-border bg-surface px-4 py-3.5 shadow-[var(--shadow-card)]">
+          <span className="text-sm font-medium text-muted">Balance total</span>
+          <div className="text-right">
+            <p className="text-xs text-muted">{balanceLabel(totalBalance)}</p>
+            <p className={`tabular-nums text-sm font-semibold ${balanceClass(totalBalance)}`}>
+              {formatMoney(Math.abs(totalBalance), "EUR")}
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
