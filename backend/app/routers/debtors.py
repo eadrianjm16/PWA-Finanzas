@@ -11,6 +11,19 @@ def _balance(debtor: models.Debtor) -> float:
     return sum(float(entry.amount) for entry in debtor.entries)
 
 
+def _normalize_phone(raw: str | None) -> str | None:
+    """Da igual cómo se escriba el teléfono (a mano, pegado de contactos...):
+    si no trae ya un prefijo de país explícito (+34, +51...), se asume
+    España. Así el enlace de WhatsApp (wa.me, que exige el prefijo) siempre
+    funciona sin que el usuario tenga que acordarse de escribirlo."""
+    trimmed = (raw or "").strip()
+    if not trimmed:
+        return None
+    if trimmed.startswith("+"):
+        return trimmed
+    return f"+34 {trimmed}"
+
+
 def _to_out(debtor: models.Debtor) -> schemas.DebtorOut:
     return schemas.DebtorOut(
         id=debtor.id, name=debtor.name, phone=debtor.phone, created_at=debtor.created_at, balance=_balance(debtor)
@@ -50,7 +63,7 @@ def create_debtor(
     if db.query(models.Debtor).filter_by(user_id=user.id, name=name).first() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una persona con ese nombre")
 
-    debtor = models.Debtor(user_id=user.id, name=name, phone=(payload.phone or "").strip() or None)
+    debtor = models.Debtor(user_id=user.id, name=name, phone=_normalize_phone(payload.phone))
     db.add(debtor)
     db.commit()
     db.refresh(debtor)
@@ -73,7 +86,7 @@ def update_debtor(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "El nombre no puede estar vacío")
         debtor.name = name
     if "phone" in updates:
-        debtor.phone = (updates["phone"] or "").strip() or None
+        debtor.phone = _normalize_phone(updates["phone"])
 
     db.commit()
     db.refresh(debtor)

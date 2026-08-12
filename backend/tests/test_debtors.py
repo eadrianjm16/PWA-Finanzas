@@ -46,6 +46,38 @@ def test_can_clear_a_debtors_phone():
     assert response.json()["phone"] is None
 
 
+def test_phone_without_country_code_gets_plus34_prepended():
+    with TestClient(app) as client:
+        _, token = register_user(client)
+        response = client.post(
+            "/api/debtors", json={"name": "Fede", "phone": "612 345 678"}, headers=auth_headers(token)
+        )
+    assert response.status_code == 201
+    assert response.json()["phone"] == "+34 612 345 678"
+
+
+def test_phone_with_a_different_country_code_is_left_untouched():
+    with TestClient(app) as client:
+        _, token = register_user(client)
+        response = client.post(
+            "/api/debtors", json={"name": "Gio", "phone": "+51 987 654 321"}, headers=auth_headers(token)
+        )
+    assert response.status_code == 201
+    assert response.json()["phone"] == "+51 987 654 321"
+
+
+def test_updating_phone_without_country_code_also_gets_normalized():
+    with TestClient(app) as client:
+        _, token = register_user(client)
+        debtor = client.post("/api/debtors", json={"name": "Hugo"}, headers=auth_headers(token)).json()
+
+        response = client.patch(
+            f"/api/debtors/{debtor['id']}", json={"phone": "600111222"}, headers=auth_headers(token)
+        )
+    assert response.status_code == 200
+    assert response.json()["phone"] == "+34 600111222"
+
+
 def test_cannot_update_another_users_debtor():
     with TestClient(app) as client:
         _, token_a = register_user(client)

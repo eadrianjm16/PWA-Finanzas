@@ -119,7 +119,8 @@ function DeudoresContent() {
             className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
           />
           <p className="px-1 text-xs text-muted">
-            Con el teléfono puedes avisarle por WhatsApp al dividir un movimiento — incluye el prefijo del país.
+            Con el teléfono puedes avisarle por WhatsApp al dividir un movimiento. Si no pones el prefijo del país,
+            asumimos España (+34).
           </p>
           <button
             onClick={addDebtor}
