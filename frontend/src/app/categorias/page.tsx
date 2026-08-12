@@ -18,12 +18,14 @@ function CategorizationRulesSection({ categories }: { categories: Category[] | u
   const [categoryId, setCategoryId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function addRule() {
     const trimmed = keyword.trim();
     if (!trimmed || !categoryId) return;
     setSaving(true);
     setError(null);
+    setNotice(null);
     try {
       await apiFetch("/api/categorization-rules", {
         method: "POST",
@@ -32,6 +34,18 @@ function CategorizationRulesSection({ categories }: { categories: Category[] | u
       setKeyword("");
       setCategoryId("");
       await mutate();
+      // Sin esto, la regla nueva solo se notaría en sincronizaciones
+      // futuras: se reaplica también sobre movimientos pasados que aún no
+      // se hayan categorizado a mano, para que el análisis histórico use
+      // la regla desde ya.
+      const result = await apiFetch<{ updated_count: number }>("/api/transactions/recategorize-uncategorized", {
+        method: "POST",
+      });
+      setNotice(
+        result.updated_count > 0
+          ? `Regla creada y aplicada a ${result.updated_count} movimiento(s) anteriores.`
+          : "Regla creada."
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la regla");
     } finally {
@@ -52,8 +66,9 @@ function CategorizationRulesSection({ categories }: { categories: Category[] | u
     <section className="mb-6">
       <h2 className="mb-2 px-1 text-sm font-semibold text-muted">Reglas de categorización</h2>
       <p className="mb-3 px-1 text-xs text-muted">
-        Si el concepto de un movimiento contiene esta palabra, se categoriza así automáticamente en cada
-        sincronización — gana a la sugerencia por defecto.
+        Si el concepto de un movimiento contiene esta palabra, se categoriza así automáticamente — gana a la
+        sugerencia por defecto. Al crear una regla también se aplica a tus movimientos pasados (los que no hayas
+        categorizado a mano).
       </p>
 
       {rules && rules.length > 0 && (
@@ -103,13 +118,14 @@ function CategorizationRulesSection({ categories }: { categories: Category[] | u
             ))}
           </select>
         </div>
+        {notice && <p className="text-sm text-brand">{notice}</p>}
         {error && <p className="text-sm text-danger">{error}</p>}
         <button
           onClick={addRule}
           disabled={saving || !keyword.trim() || !categoryId}
           className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition active:scale-[0.98] disabled:opacity-50"
         >
-          Añadir regla
+          {saving ? "Creando y aplicando…" : "Añadir regla"}
         </button>
       </div>
     </section>
