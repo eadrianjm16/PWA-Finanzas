@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { CreditCard, Pencil, Plus, Trash2 } from "lucide-react";
+import { BadgeCheck, CreditCard, Pencil, Plus, Trash2 } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -26,6 +26,12 @@ function toDateInputValue(iso: string | null): string {
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function oneMonthAfter(iso: string | null, fallbackIso: string): string {
+  const base = new Date(iso ?? fallbackIso);
+  base.setMonth(base.getMonth() + 1);
+  return base.toISOString();
 }
 
 function LoanForm({
@@ -192,6 +198,25 @@ function LoanCard({ loan, onChanged }: { loan: Loan; onChanged: () => Promise<un
     await onChanged();
   }
 
+  async function confirmMatchedPayment() {
+    if (!loan.matched_transaction) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch(`/api/loans/${loan.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          next_payment_date: oneMonthAfter(loan.next_payment_date, loan.matched_transaction.booking_date),
+        }),
+      });
+      await onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (editing) {
     return <LoanForm initial={loan} onCancel={() => setEditing(false)} onSubmit={save} saving={saving} error={error} />;
   }
@@ -236,6 +261,24 @@ function LoanCard({ loan, onChanged }: { loan: Loan; onChanged: () => Promise<un
         {loan.tin != null && <span>TIN {loan.tin}%</span>}
         {loan.tae != null && <span>TAE {loan.tae}%</span>}
       </div>
+
+      {loan.matched_transaction && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2.5">
+          <BadgeCheck className="h-4 w-4 shrink-0 text-brand" />
+          <p className="flex-1 text-xs text-brand">
+            Cargo detectado: {formatMoney(Math.abs(loan.matched_transaction.amount), "EUR")} el{" "}
+            {formatDate(loan.matched_transaction.booking_date)} ({loan.matched_transaction.description})
+          </p>
+          <button
+            onClick={confirmMatchedPayment}
+            disabled={saving}
+            className="shrink-0 rounded-full bg-brand px-2.5 py-1 text-xs font-medium text-brand-contrast disabled:opacity-50"
+          >
+            Fue este pago
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </li>
   );
 }

@@ -350,9 +350,14 @@ class FixedExpensesSummaryOut(BaseModel):
     estimated_leftover: float | None
 
 
-class LoanOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+class MatchedLoanPaymentOut(BaseModel):
+    entry_reference: str
+    booking_date: datetime
+    amount: float
+    description: str
 
+
+class LoanOut(BaseModel):
     id: str
     name: str
     credit_limit: float | None
@@ -362,6 +367,7 @@ class LoanOut(BaseModel):
     tae: float | None
     next_payment_date: datetime | None
     updated_at: datetime
+    matched_transaction: MatchedLoanPaymentOut | None = None
 
 
 class LoanCreateRequest(BaseModel):

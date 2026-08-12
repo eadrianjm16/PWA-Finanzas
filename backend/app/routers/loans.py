@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..deps import CurrentUser, get_current_user, get_db_session
+from ..loan_matching import find_matching_payment
 
 router = APIRouter(prefix="/api/loans", tags=["loans"])
 
@@ -14,11 +15,38 @@ def _get_loan_or_404(db: Session, user: CurrentUser, loan_id: str) -> models.Loa
     return loan
 
 
+def _to_out(db: Session, user_id: str, loan: models.Loan) -> schemas.LoanOut:
+    match = find_matching_payment(db, user_id, loan)
+    matched_transaction = (
+        schemas.MatchedLoanPaymentOut(
+            entry_reference=match.entry_reference,
+            booking_date=match.booking_date,
+            amount=float(match.amount),
+            description=match.counterparty_name or match.remittance_information,
+        )
+        if match is not None
+        else None
+    )
+    return schemas.LoanOut(
+        id=loan.id,
+        name=loan.name,
+        credit_limit=float(loan.credit_limit) if loan.credit_limit is not None else None,
+        balance=float(loan.balance),
+        monthly_payment=float(loan.monthly_payment),
+        tin=float(loan.tin) if loan.tin is not None else None,
+        tae=float(loan.tae) if loan.tae is not None else None,
+        next_payment_date=loan.next_payment_date,
+        updated_at=loan.updated_at,
+        matched_transaction=matched_transaction,
+    )
+
+
 @router.get("", response_model=list[schemas.LoanOut])
 def list_loans(
     db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
-) -> list[models.Loan]:
-    return db.query(models.Loan).filter_by(user_id=user.id).order_by(models.Loan.created_at).all()
+) -> list[schemas.LoanOut]:
+    loans = db.query(models.Loan).filter_by(user_id=user.id).order_by(models.Loan.created_at).all()
+    return [_to_out(db, user.id, loan) for loan in loans]
 
 
 @router.post("", response_model=schemas.LoanOut, status_code=status.HTTP_201_CREATED)
@@ -26,7 +54,7 @@ def create_loan(
     payload: schemas.LoanCreateRequest,
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(get_current_user),
-) -> models.Loan:
+) -> schemas.LoanOut:
     if not payload.name.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "El nombre no puede estar vacío")
     if payload.balance < 0 or payload.monthly_payment < 0:
@@ -45,7 +73,7 @@ def create_loan(
     db.add(loan)
     db.commit()
     db.refresh(loan)
-    return loan
+    return _to_out(db, user.id, loan)
 
 
 @router.patch("/{loan_id}", response_model=schemas.LoanOut)
@@ -54,7 +82,7 @@ def update_loan(
     payload: schemas.LoanUpdateRequest,
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(get_current_user),
-) -> models.Loan:
+) -> schemas.LoanOut:
     loan = _get_loan_or_404(db, user, loan_id)
     updates = payload.model_dump(exclude_unset=True)
 
@@ -72,7 +100,7 @@ def update_loan(
 
     db.commit()
     db.refresh(loan)
-    return loan
+    return _to_out(db, user.id, loan)
 
 
 @router.delete("/{loan_id}", status_code=status.HTTP_204_NO_CONTENT)

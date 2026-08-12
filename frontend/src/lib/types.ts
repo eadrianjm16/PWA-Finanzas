@@ -173,6 +173,13 @@ export interface SavingsGoal {
   created_at: string;
 }
 
+export interface MatchedLoanPayment {
+  entry_reference: string;
+  booking_date: string;
+  amount: number;
+  description: string;
+}
+
 export interface Loan {
   id: string;
   name: string;
@@ -183,6 +190,7 @@ export interface Loan {
   tae: number | null;
   next_payment_date: string | null;
   updated_at: string;
+  matched_transaction: MatchedLoanPayment | null;
 }
 
 export interface FixedExpense {
