@@ -29,6 +29,8 @@ export default function TransactionDetail({
   const [includeMe, setIncludeMe] = useState(false);
   const [splitMode, setSplitMode] = useState<SplitMode>("equal");
   const [fixedAmounts, setFixedAmounts] = useState<Record<string, string>>({});
+  const [weights, setWeights] = useState<Record<string, string>>({});
+  const [myWeight, setMyWeight] = useState("1");
   const [newDebtorName, setNewDebtorName] = useState("");
 
   useEffect(() => {
@@ -41,8 +43,20 @@ export default function TransactionDetail({
   }, []);
 
   const total = Math.abs(transaction.amount);
-  const divisor = selected.size + (includeMe ? 1 : 0);
-  const equalShare = divisor > 0 ? total / divisor : 0;
+
+  // "Por igual" reparte el total proporcionalmente a un multiplicador por
+  // persona (por defecto 1 = reparto realmente igual); sirve para el caso
+  // real de que alguien haya consumido/pagado el doble o N veces su parte.
+  function weightFor(id: string): number {
+    const raw = Number(weights[id]?.replace(",", "."));
+    return raw > 0 ? raw : 1;
+  }
+  const myParsedWeight = Number(myWeight.replace(",", ".")) > 0 ? Number(myWeight.replace(",", ".")) : 1;
+  const totalWeight = [...selected].reduce((sum, id) => sum + weightFor(id), 0) + (includeMe ? myParsedWeight : 0);
+  function shareFor(id: string): number {
+    return totalWeight > 0 ? (total * weightFor(id)) / totalWeight : 0;
+  }
+
   const fixedAssigned = [...selected].reduce(
     (sum, id) => sum + (Number(fixedAmounts[id]?.replace(",", ".")) || 0),
     0
@@ -92,7 +106,7 @@ export default function TransactionDetail({
 
   const canSaveSplit =
     selected.size > 0 &&
-    (splitMode === "equal" ? divisor > 0 : fixedAssigned > 0 && fixedAssigned <= total + 0.01);
+    (splitMode === "equal" ? totalWeight > 0 : fixedAssigned > 0 && fixedAssigned <= total + 0.01);
 
   async function saveSplit() {
     setSaving(true);
@@ -100,7 +114,7 @@ export default function TransactionDetail({
     try {
       const entries = [...selected].map((debtorId) => ({
         debtor_id: debtorId,
-        amount: splitMode === "equal" ? equalShare : Number(fixedAmounts[debtorId]?.replace(",", ".")) || 0,
+        amount: splitMode === "equal" ? shareFor(debtorId) : Number(fixedAmounts[debtorId]?.replace(",", ".")) || 0,
       }));
       await apiFetch(`/api/transactions/${transaction.entry_reference}/split`, {
         method: "POST",
@@ -195,15 +209,31 @@ export default function TransactionDetail({
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted">Total: {formatMoney(total, transaction.currency)}</p>
 
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={includeMe}
-                onChange={(e) => setIncludeMe(e.target.checked)}
-                className="h-4 w-4 accent-[var(--brand)]"
-              />
-              Incluirme en el reparto
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={includeMe}
+                  onChange={(e) => setIncludeMe(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--brand)]"
+                />
+                Incluirme en el reparto
+              </label>
+              {includeMe && splitMode === "equal" && (
+                <label className="flex items-center gap-1 text-xs text-muted">
+                  ×
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0.1}
+                    step={0.1}
+                    value={myWeight}
+                    onChange={(e) => setMyWeight(e.target.value)}
+                    className="w-14 rounded-lg border border-surface-border bg-background px-1.5 py-1 text-right text-sm outline-none focus:border-brand"
+                  />
+                </label>
+              )}
+            </div>
 
             <div className="flex overflow-hidden rounded-xl border border-surface-border text-sm">
               <button
@@ -219,6 +249,11 @@ export default function TransactionDetail({
                 Cantidad fija
               </button>
             </div>
+            {splitMode === "equal" && (
+              <p className="-mt-2 text-xs text-muted">
+                Reparto proporcional al multiplicador de cada persona (×1 = parte igual; ×2 = el doble).
+              </p>
+            )}
 
             <ul className="overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-[var(--shadow-card)]">
               {debtors?.map((debtor, index) => (
@@ -236,7 +271,21 @@ export default function TransactionDetail({
                   <span className="flex-1 text-sm font-medium">{debtor.name}</span>
                   {selected.has(debtor.id) &&
                     (splitMode === "equal" ? (
-                      <span className="tabular-nums text-sm text-muted">{formatMoney(equalShare, "EUR")}</span>
+                      <span className="flex items-center gap-2">
+                        <label className="flex items-center gap-1 text-xs text-muted">
+                          ×
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0.1}
+                            step={0.1}
+                            value={weights[debtor.id] ?? "1"}
+                            onChange={(e) => setWeights((prev) => ({ ...prev, [debtor.id]: e.target.value }))}
+                            className="w-14 rounded-lg border border-surface-border bg-background px-1.5 py-1 text-right text-sm outline-none focus:border-brand"
+                          />
+                        </label>
+                        <span className="tabular-nums text-sm text-muted">{formatMoney(shareFor(debtor.id), "EUR")}</span>
+                      </span>
                     ) : (
                       <input
                         type="number"

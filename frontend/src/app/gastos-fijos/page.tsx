@@ -227,23 +227,29 @@ function GastosFijosContent() {
             className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
           />
           <div className="flex gap-2">
-            <input
-              type="number"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Importe"
-              className="flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
-            />
-            <input
-              type="number"
-              min={1}
-              max={31}
-              value={dueDay}
-              onChange={(e) => setDueDay(e.target.value)}
-              placeholder="Día"
-              className="w-20 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
-            />
+            <label className="flex flex-1 flex-col gap-1">
+              <span className="text-xs text-muted">Importe mensual</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="Importe"
+                className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              />
+            </label>
+            <label className="flex w-28 flex-col gap-1">
+              <span className="text-xs text-muted">Día de cobro</span>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={dueDay}
+                onChange={(e) => setDueDay(e.target.value)}
+                placeholder="1-31"
+                className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+              />
+            </label>
           </div>
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex gap-2">
@@ -286,23 +292,29 @@ function GastosFijosContent() {
                   className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
                 />
                 <div className="flex gap-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={editAmount}
-                    onChange={(e) => setEditAmount(e.target.value)}
-                    placeholder="Importe"
-                    className="flex-1 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
-                  />
-                  <input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={editDueDay}
-                    onChange={(e) => setEditDueDay(e.target.value)}
-                    placeholder="Día"
-                    className="w-20 rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
-                  />
+                  <label className="flex flex-1 flex-col gap-1">
+                    <span className="text-xs text-muted">Importe mensual</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      placeholder="Importe"
+                      className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                    />
+                  </label>
+                  <label className="flex w-28 flex-col gap-1">
+                    <span className="text-xs text-muted">Día de cobro</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={editDueDay}
+                      onChange={(e) => setEditDueDay(e.target.value)}
+                      placeholder="1-31"
+                      className="rounded-xl border border-surface-border bg-background px-3 py-2 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                    />
+                  </label>
                 </div>
                 {editError && <p className="text-sm text-danger">{editError}</p>}
                 <div className="flex gap-2">
