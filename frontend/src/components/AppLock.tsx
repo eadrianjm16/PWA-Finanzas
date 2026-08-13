@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lock, Wallet } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { hasPinSet, markHiddenNow, shouldRelockAfterHidden, UNLOCK_KEY, verifyPin } from "@/lib/pinLock";
 
@@ -59,9 +59,8 @@ export default function AppLock({ children }: { children: React.ReactNode }) {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
-      <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-brand-contrast shadow-[var(--shadow-pop)]">
-        <Wallet className="h-7 w-7" strokeWidth={2} />
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element -- icono estatico servido tal cual, no necesita optimizacion de next/image */}
+      <img src="/icons/icon.svg" alt="App Bank" className="mb-5 h-14 w-14 rounded-2xl shadow-[var(--shadow-pop)]" />
       <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-surface-hover">
         <Lock className="h-4 w-4 text-muted" />
       </span>

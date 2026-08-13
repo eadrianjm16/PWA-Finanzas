@@ -1,13 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#171717" />
+  <defs>
+    <linearGradient id="appbank-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF6A45" />
+      <stop offset="1" stop-color="#E01E1E" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#appbank-bg)" />
   <text
     x="50%"
-    y="50%"
+    y="41%"
     dominant-baseline="central"
     text-anchor="middle"
-    font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
-    font-weight="700"
-    font-size="280"
+    font-family="system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif"
+    font-weight="800"
+    font-size="118"
     fill="#ffffff"
-  >F</text>
+  >App</text>
+  <text
+    x="50%"
+    y="68%"
+    dominant-baseline="central"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif"
+    font-weight="800"
+    font-size="118"
+    fill="#ffffff"
+  >Bank</text>
 </svg>

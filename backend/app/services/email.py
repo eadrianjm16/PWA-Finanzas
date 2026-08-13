@@ -25,7 +25,7 @@ async def send_password_reset_email(to_email: str, reset_url: str) -> None:
             json={
                 "from": settings.resend_from_email,
                 "to": [to_email],
-                "subject": "Recupera tu contraseña — Finanzas",
+                "subject": "Recupera tu contraseña — App Bank",
                 "html": (
                     f"<p>Has pedido restablecer tu contraseña.</p>"
                     f'<p><a href="{reset_url}">Haz clic aquí para elegir una nueva contraseña</a> '

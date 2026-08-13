@@ -1,6 +1,6 @@
 {
-  "name": "Finanzas",
-  "short_name": "Finanzas",
+  "name": "App Bank",
+  "short_name": "App Bank",
   "description": "Saldo y movimientos de tus cuentas bancarias.",
   "start_url": "/accounts",
   "display": "standalone",

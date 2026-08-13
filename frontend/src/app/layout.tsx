@@ -10,13 +10,13 @@ import SWRProvider from "@/components/SWRProvider";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Finanzas",
+  title: "App Bank",
   description: "Saldo y movimientos de tus cuentas bancarias.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Finanzas",
+    title: "App Bank",
   },
   icons: {
     icon: "/icons/icon.svg",

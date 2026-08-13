@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Envio de emails (recuperar contraseña), via Resend. Vacio = la funcion
     # queda "activa" a nivel de API pero no llega a enviar nada (se loguea).
     resend_api_key: str = ""
-    resend_from_email: str = "Finanzas <onboarding@resend.dev>"
+    resend_from_email: str = "App Bank <onboarding@resend.dev>"
 
     # Codigo de invitacion para registrarse (opcional). Vacio = registro abierto.
     registration_invite_code: str = ""
