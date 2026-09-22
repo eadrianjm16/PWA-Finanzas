@@ -11,7 +11,14 @@ import { Skeleton, SkeletonList } from "@/components/Skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import UpcomingCharges from "@/components/UpcomingCharges";
 import { formatMoney } from "@/lib/format";
-import type { BankConnection } from "@/lib/types";
+import type { BankConnection, SyncResponse } from "@/lib/types";
+
+// Igual que en Movimientos: algunos bancos (Santander incluido) solo
+// permiten unas pocas consultas al día por PSD2 fuera de una sesión con el
+// usuario presente. "Actualizar todo" ya dispara el doble de peticiones
+// (saldos + movimientos) que sincronizar por separado, así que el margen
+// evita que pulsarlo varias veces seguidas agote esa cuota sin querer.
+const REFRESH_ALL_COOLDOWN_MS = 60_000;
 
 function AccountsContent() {
   const router = useRouter();
@@ -21,6 +28,8 @@ function AccountsContent() {
   const [notice, setNotice] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const [coolingDown, setCoolingDown] = useState(false);
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,6 +54,30 @@ function AccountsContent() {
       setError(err instanceof ApiError ? err.message : "No se pudo actualizar el saldo");
     } finally {
       setRefreshing(null);
+    }
+  }
+
+  async function refreshAll() {
+    if (refreshingAll || coolingDown) return;
+    setRefreshingAll(true);
+    setError(null);
+    try {
+      // Secuencial, no en paralelo: evita mandarle al mismo banco dos
+      // rafagas de peticiones PSD2 a la vez (saldos y movimientos).
+      const balances = await apiFetch<SyncResponse>("/api/accounts/refresh-all-balances", { method: "POST" });
+      const movements = await apiFetch<SyncResponse>("/api/transactions/sync", { method: "POST" });
+      const failed = [...balances.results, ...movements.results].filter((r) => !r.ok);
+      if (failed.length > 0) {
+        const reasons = [...new Set(failed.map((r) => r.error).filter(Boolean))];
+        setError(reasons.length > 0 ? reasons.join(" · ") : "No se pudo actualizar alguna cuenta.");
+      }
+      await mutate();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar");
+    } finally {
+      setRefreshingAll(false);
+      setCoolingDown(true);
+      setTimeout(() => setCoolingDown(false), REFRESH_ALL_COOLDOWN_MS);
     }
   }
 
@@ -94,15 +127,28 @@ function AccountsContent() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Saldo</h1>
-        <button
-          onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast shadow-[var(--shadow-card)] transition active:scale-95"
-        >
-          <Plus className="h-4 w-4" strokeWidth={2.5} />
-          Banco
-        </button>
+        <div className="flex items-center gap-2">
+          {connections && connections.length > 0 && (
+            <button
+              onClick={refreshAll}
+              disabled={refreshingAll || coolingDown}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-surface-border bg-surface text-muted transition active:scale-95 disabled:opacity-50"
+              aria-label="Actualizar todo"
+              title={coolingDown ? "Espera un momento" : "Actualizar saldos y movimientos"}
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshingAll ? "animate-spin" : ""}`} strokeWidth={2.5} />
+            </button>
+          )}
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-contrast shadow-[var(--shadow-card)] transition active:scale-95"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            Banco
+          </button>
+        </div>
       </div>
 
       {notice && (

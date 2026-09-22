@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..deps import CurrentUser, get_current_user, get_db_session
 from ..services.enable_banking import EnableBankingClient, EnableBankingError
-from ..services.sync import refresh_balance
+from ..services.sync import describe_enable_banking_error, refresh_balance
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
@@ -30,6 +30,25 @@ def list_accounts(
         .order_by(models.LinkedAccount.linked_at)
         .all()
     )
+
+
+@router.post("/refresh-all-balances", response_model=schemas.SyncResponse)
+async def refresh_all_balances(
+    request: Request, db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
+) -> schemas.SyncResponse:
+    client: EnableBankingClient = request.app.state.eb_client
+    results: list[schemas.SyncResult] = []
+    for account in db.query(models.LinkedAccount).filter_by(user_id=user.id).all():
+        try:
+            await refresh_balance(db, account, client)
+            results.append(schemas.SyncResult(account_uid=account.account_uid, ok=True))
+        except EnableBankingError as error:
+            results.append(
+                schemas.SyncResult(
+                    account_uid=account.account_uid, ok=False, error=describe_enable_banking_error(error)
+                )
+            )
+    return schemas.SyncResponse(results=results, auto_categorized=[])
 
 
 @router.patch("/{account_uid}", response_model=schemas.LinkedAccountOut)
