@@ -57,24 +57,35 @@ def seed_data() -> None:
     sys.path.insert(0, str(Path(__file__).parent))
     from app import models
     from app.database import SessionLocal, engine
-    from app.default_categories import seed_if_needed
+    from app.default_categories import seed_categories_for_user
 
     models.Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
-    seed_if_needed(db)
+    owner = db.query(models.User).order_by(models.User.created_at).first()
+    if owner is None:
+        print("No hay ningun usuario en la base: registra uno (o corre las migraciones) antes de sembrar.")
+        db.close()
+        return
+    user_id = owner.id
 
-    if db.query(models.BankConnection).count() > 0:
+    if db.query(models.Category).filter_by(user_id=user_id).count() == 0:
+        seed_categories_for_user(db, user_id)
+
+    if db.query(models.BankConnection).filter_by(user_id=user_id).count() > 0:
         print("Ya hay datos de ejemplo en la base, no se vuelve a sembrar.")
         db.close()
         return
 
-    connection = models.BankConnection(aspsp_name="Banco Demo", aspsp_country="ES", key="Banco Demo|ES")
+    connection = models.BankConnection(
+        user_id=user_id, aspsp_name="Banco Demo", aspsp_country="ES", key="Banco Demo|ES"
+    )
     db.add(connection)
     db.flush()
 
     account = models.LinkedAccount(
         account_uid="demo-acc-1",
+        user_id=user_id,
         display_name="Cuenta Corriente",
         iban="ES7620770024003102575766",
         connection_id=connection.id,
@@ -87,12 +98,15 @@ def seed_data() -> None:
 
     # segundo banco/cuenta: sirve para demostrar la deteccion de traspasos
     # internos ("no computable" en Analisis).
-    connection2 = models.BankConnection(aspsp_name="Banco Ahorro Demo", aspsp_country="ES", key="Banco Ahorro Demo|ES")
+    connection2 = models.BankConnection(
+        user_id=user_id, aspsp_name="Banco Ahorro Demo", aspsp_country="ES", key="Banco Ahorro Demo|ES"
+    )
     db.add(connection2)
     db.flush()
 
     account2 = models.LinkedAccount(
         account_uid="demo-acc-2",
+        user_id=user_id,
         display_name="Cuenta Ahorro",
         iban="ES1000492352082414205416",
         connection_id=connection2.id,
@@ -103,7 +117,7 @@ def seed_data() -> None:
     db.add(account2)
     db.flush()
 
-    categories = {c.name: c for c in db.query(models.Category).all()}
+    categories = {c.name: c for c in db.query(models.Category).filter_by(user_id=user_id).all()}
     now = datetime.now(timezone.utc)
 
     # (categoria, CRDT/DBIT, importe, texto, contraparte, dias atras)
@@ -180,8 +194,8 @@ def seed_data() -> None:
     db.add(models.Budget(category_id=categories["Suscripciones"].id, monthly_limit=30))
 
     # deudores de ejemplo
-    ana = models.Debtor(name="Ana")
-    carlos = models.Debtor(name="Carlos")
+    ana = models.Debtor(user_id=user_id, name="Ana")
+    carlos = models.Debtor(user_id=user_id, name="Carlos")
     db.add(ana)
     db.add(carlos)
     db.flush()
