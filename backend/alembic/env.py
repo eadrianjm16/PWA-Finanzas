@@ -3,8 +3,11 @@ from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
+from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from app import models  # noqa: E402
 from app.database import engine  # noqa: E402

@@ -42,6 +42,13 @@ def _has_column(bind, table: str, column: str) -> bool:
 def upgrade() -> None:
     bind = op.get_bind()
 
+    # Instalacion nueva (Turso/SQLite vacios, sin el esquema previo a
+    # multiusuario): no hay datos legacy que migrar, asi que en vez del
+    # ALTER a mano de abajo (pensado para preservar una base con datos
+    # reales) creamos directamente el esquema final a partir de los modelos
+    # actuales, que ya incluyen user_id en cada tabla.
+    fresh_install = not _table_exists(bind, "bank_connections")
+
     # SQLite/libsql no permite ALTER/DROP de una tabla mientras otra la
     # referencia por FK con la comprobacion activada.
     bind.execute(sa.text("PRAGMA foreign_keys=OFF"))
@@ -81,6 +88,13 @@ def upgrade() -> None:
             ),
             {"id": owner_id, "email": owner_email, "hash": existing_hash},
         )
+
+    if fresh_install:
+        from app import models
+
+        models.Base.metadata.create_all(bind=bind)
+        bind.execute(sa.text("PRAGMA foreign_keys=ON"))
+        return
 
     # 3. bank_connections: + user_id, unique (key) -> unique (user_id, key).
     if not _has_column(bind, "bank_connections", "user_id"):
