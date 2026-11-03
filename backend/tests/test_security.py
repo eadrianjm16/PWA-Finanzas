@@ -1,12 +1,14 @@
 import jwt
 import pytest
 
+from app import security
 from app.security import (
     create_access_token,
     create_oauth_state,
     decode_access_token,
     decode_oauth_state,
     hash_password,
+    make_eb_application_token,
     verify_password,
 )
 
@@ -48,3 +50,24 @@ def test_oauth_state_cannot_be_used_as_access_token():
     state_token = create_oauth_state("user-123", "Banco Santander", "ES")
     with pytest.raises(jwt.InvalidTokenError):
         decode_access_token(state_token)
+
+
+def test_eb_application_token_is_cached_and_reused():
+    security._eb_token_cache["token"] = None
+    security._eb_token_cache["expires_at"] = 0
+
+    first = make_eb_application_token()
+    second = make_eb_application_token()
+
+    assert first == second
+
+
+def test_eb_application_token_is_regenerated_once_stale():
+    security._eb_token_cache["token"] = "stale-token"
+    security._eb_token_cache["expires_at"] = 0  # ya caducado
+
+    fresh = make_eb_application_token()
+
+    assert fresh != "stale-token"
+    payload = jwt.decode(fresh, options={"verify_signature": False})
+    assert payload["iss"] == "enablebanking.com"

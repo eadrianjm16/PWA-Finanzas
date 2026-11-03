@@ -3,14 +3,28 @@ import uuid
 from pathlib import Path
 
 import bcrypt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 TEST_PASSWORD = "test-password-123"
 TEST_DB_PATH = Path(__file__).parent / "test_finanzas.db"
 
+
+def _generate_test_rsa_pem() -> str:
+    # Clave de usar-y-tirar, solo para que make_eb_application_token() (RS256)
+    # tenga algo valido que firmar en los tests - el placeholder de texto
+    # plano que habia antes nunca fue un PEM real, asi que cualquier test que
+    # de verdad llamara a esa funcion habria fallado.
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+
+
 os.environ.setdefault("EB_APPLICATION_ID", "test-application-id")
-os.environ.setdefault(
-    "EB_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\ntest-key-not-real\n-----END PRIVATE KEY-----"
-)
+os.environ.setdefault("EB_PRIVATE_KEY_PEM", _generate_test_rsa_pem())
 os.environ.setdefault("APP_JWT_SECRET", "test-jwt-secret")
 os.environ.setdefault("APP_PASSWORD_HASH", bcrypt.hashpw(TEST_PASSWORD.encode(), bcrypt.gensalt()).decode())
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{TEST_DB_PATH}")

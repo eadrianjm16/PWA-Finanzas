@@ -96,13 +96,28 @@ def decode_password_reset_token(token: str, current_password_hash: str) -> dict:
     return payload
 
 
+_eb_token_cache: dict[str, object] = {"token": None, "expires_at": 0}
+
+
 def make_eb_application_token() -> str:
     """JWT (RS256, firmado con la clave privada de la app) que Enable Banking
     exige en cada peticion. Equivalente a JWTSigner.makeApplicationToken()
     de la app iOS, pero mucho mas simple: PyJWT acepta PEM PKCS#1 y PKCS#8
     directamente, sin necesidad de desempaquetar el DER a mano.
+
+    El token es valido una hora; se cachea en memoria y solo se vuelve a
+    firmar (RSA, no es gratis) cuando quedan menos de 5 minutos - antes se
+    regeneraba en cada peticion, incluidas varias en paralelo al sincronizar
+    varias cuentas a la vez.
     """
     now = int(time.time())
-    payload = {"iss": "enablebanking.com", "aud": "api.enablebanking.com", "iat": now, "exp": now + 3600}
+    if _eb_token_cache["token"] is not None and now < _eb_token_cache["expires_at"] - 300:
+        return _eb_token_cache["token"]
+
+    expires_at = now + 3600
+    payload = {"iss": "enablebanking.com", "aud": "api.enablebanking.com", "iat": now, "exp": expires_at}
     headers = {"kid": settings.eb_application_id}
-    return jwt.encode(payload, settings.eb_private_key_pem, algorithm="RS256", headers=headers)
+    token = jwt.encode(payload, settings.eb_private_key_pem, algorithm="RS256", headers=headers)
+    _eb_token_cache["token"] = token
+    _eb_token_cache["expires_at"] = expires_at
+    return token
