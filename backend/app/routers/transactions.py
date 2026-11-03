@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 from datetime import datetime
@@ -7,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from .. import models, schemas
+from ..database import SessionLocal
 from ..deps import CurrentUser, get_current_user, get_db_session
 from ..services.enable_banking import EnableBankingClient, EnableBankingError
 from ..services.push import maybe_send_weekly_digest, notify_new_alerts
@@ -186,23 +188,41 @@ def categorize_transaction(
     return transaction
 
 
+async def _sync_one_account_isolated(
+    account_uid: str, user_id: str, client: EnableBankingClient
+) -> tuple[schemas.SyncResult, list[dict]]:
+    # Sesion propia por cuenta (no la de la request): permite lanzar todas las
+    # cuentas en paralelo con asyncio.gather sin que compartan una misma
+    # Session de SQLAlchemy, que no soporta uso concurrente desde varias
+    # tareas a la vez.
+    session = SessionLocal()
+    try:
+        account = session.query(models.LinkedAccount).filter_by(account_uid=account_uid, user_id=user_id).first()
+        if account is None:
+            return schemas.SyncResult(account_uid=account_uid, ok=False, error="Cuenta no encontrada"), []
+        try:
+            auto_categorized = await sync_transactions(session, account, client)
+            return schemas.SyncResult(account_uid=account_uid, ok=True), auto_categorized
+        except EnableBankingError as error:
+            return (
+                schemas.SyncResult(account_uid=account_uid, ok=False, error=describe_enable_banking_error(error)),
+                [],
+            )
+    finally:
+        session.close()
+
+
 @router.post("/sync", response_model=schemas.SyncResponse)
 async def sync_all(
     request: Request, db: Session = Depends(get_db_session), user: CurrentUser = Depends(get_current_user)
 ) -> schemas.SyncResponse:
     client: EnableBankingClient = request.app.state.eb_client
-    results: list[schemas.SyncResult] = []
-    auto_categorized: list[dict] = []
-    for account in db.query(models.LinkedAccount).filter_by(user_id=user.id).all():
-        try:
-            auto_categorized.extend(await sync_transactions(db, account, client))
-            results.append(schemas.SyncResult(account_uid=account.account_uid, ok=True))
-        except EnableBankingError as error:
-            results.append(
-                schemas.SyncResult(
-                    account_uid=account.account_uid, ok=False, error=describe_enable_banking_error(error)
-                )
-            )
+    account_uids = [row[0] for row in db.query(models.LinkedAccount.account_uid).filter_by(user_id=user.id).all()]
+    outcomes = await asyncio.gather(
+        *(_sync_one_account_isolated(account_uid, user.id, client) for account_uid in account_uids)
+    )
+    results = [outcome[0] for outcome in outcomes]
+    auto_categorized = [item for outcome in outcomes for item in outcome[1]]
 
     notify_new_alerts(db, user.id)
     maybe_send_weekly_digest(db, user.id)
