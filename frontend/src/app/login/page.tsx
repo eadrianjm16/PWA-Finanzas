@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
-import { ApiError } from "@/lib/api";
+import { FormEvent, useEffect, useState } from "react";
+import { ApiError, wakeBackend } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+
+const SLOW_HINT_DELAY_MS = 4000;
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -13,17 +15,27 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showSlowHint, setShowSlowHint] = useState(false);
+
+  useEffect(() => {
+    // Adelanta el "despertar" del backend mientras el usuario escribe su
+    // email y contraseña, en vez de esperar a que pulse "Entrar".
+    wakeBackend();
+  }, []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setLoading(true);
+    const slowHintTimer = setTimeout(() => setShowSlowHint(true), SLOW_HINT_DELAY_MS);
     try {
       await login(email, password);
       router.replace("/accounts");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo conectar con el servidor");
     } finally {
+      clearTimeout(slowHintTimer);
+      setShowSlowHint(false);
       setLoading(false);
     }
   }
@@ -44,6 +56,9 @@ export default function LoginPage() {
         >
           <input
             type="email"
+            name="email"
+            id="email"
+            autoComplete="username"
             autoFocus
             required
             value={email}
@@ -53,6 +68,9 @@ export default function LoginPage() {
           />
           <input
             type="password"
+            name="password"
+            id="password"
+            autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -60,6 +78,11 @@ export default function LoginPage() {
             className="rounded-xl border border-surface-border bg-background px-4 py-3 text-base outline-none transition-colors focus:border-brand focus:ring-4 focus:ring-brand-soft"
           />
           {error && <p className="text-sm text-danger">{error}</p>}
+          {loading && showSlowHint && (
+            <p className="text-center text-xs text-muted">
+              El servidor estaba dormido por inactividad — puede tardar unos segundos en despertar.
+            </p>
+          )}
           <button
             type="submit"
             disabled={loading}

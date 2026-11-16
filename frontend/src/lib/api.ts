@@ -9,6 +9,16 @@ export class ApiError extends Error {
   }
 }
 
+// El backend (Render, plan gratuito) se duerme tras un rato sin trafico y el
+// primer request lo despierta con una latencia notable. Llamar esto nada mas
+// entrar a Login, antes de que el usuario termine de escribir, superpone esa
+// espera con el tiempo que tarda en rellenar el formulario. Resultado
+// ignorado a proposito: es solo para adelantar el arranque en frio, el login
+// de verdad sigue yendo por apiFetch.
+export function wakeBackend(): void {
+  fetch(`${API_BASE_URL}/health`).catch(() => {});
+}
+
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(TOKEN_KEY);
