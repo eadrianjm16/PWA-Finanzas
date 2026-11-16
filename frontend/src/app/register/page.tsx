@@ -49,6 +49,9 @@ export default function RegisterPage() {
         >
           <input
             type="email"
+            name="email"
+            id="email"
+            autoComplete="username"
             autoFocus
             required
             value={email}
@@ -58,6 +61,9 @@ export default function RegisterPage() {
           />
           <input
             type="password"
+            name="password"
+            id="password"
+            autoComplete="new-password"
             required
             minLength={8}
             value={password}
